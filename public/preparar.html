@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cómo preparar tu solicitud · Centro Actoral de Boyacá</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<style>
+  .guide { display: grid; grid-template-columns: 1.1fr 1fr; gap: 34px; }
+  @media (max-width: 960px) { .guide { grid-template-columns: 1fr; } }
+  .vid-guide { border-radius: 22px; overflow: hidden; box-shadow: 0 6px 0 var(--petrol); }
+  .vid-guide .screen { aspect-ratio: 16/10; background: repeating-conic-gradient(#3F7F8A 0 25%, #36727D 0 50%) 0 0/34px 34px; display: grid; place-items: center; position: relative; cursor: pointer; }
+  .vid-guide .screen .play { width: 0; height: 0; border-left: 70px solid var(--lime); border-top: 42px solid transparent; border-bottom: 42px solid transparent; margin-left: 18px; transition: transform .2s; }
+  .vid-guide .screen:hover .play { transform: scale(1.08); }
+  .vid-guide video { width: 100%; display: block; background: #000; }
+  .vid-guide .cap { background: var(--lime); color: var(--petrol); padding: 20px 24px; text-align: center; font-weight: 600; font-size: .93rem; line-height: 1.5; }
+  .shot { background: var(--petrol); border-radius: 18px; padding: 16px 14px; text-align: center; color: #fff; }
+  .shot .frame { aspect-ratio: 3/4; border-radius: 10px; position: relative; display: grid; place-items: end center; overflow: hidden; }
+  .shot .frame::before, .shot .frame::after { content: ''; position: absolute; width: 22px; height: 22px; border: 3px solid var(--lime); }
+  .shot .frame::before { top: 6px; left: 6px; border-right: 0; border-bottom: 0; }
+  .shot .frame::after { top: 6px; right: 6px; border-left: 0; border-bottom: 0; }
+  .shot .body-ic { color: var(--turq); width: 70%; }
+  .shot b { display: block; color: var(--lime); font-size: .75rem; letter-spacing: .1em; margin: 12px 0 6px; }
+  .shot span { font-size: .78rem; opacity: .92; line-height: 1.4; display: block; }
+  /* modal de registro */
+  .reg .modal-b { padding: 0; }
+  .reg-head { padding: 18px 26px 0; position: sticky; top: 0; background: #fff; z-index: 2; }
+  .reg-body { padding: 4px 26px 20px; }
+  .reg-step { display: none; }
+  .reg-step.on { display: block; animation: fade .2s; }
+  .exp-block { border: 1.5px solid var(--petrol); border-radius: 16px; margin-bottom: 14px; overflow: hidden; }
+  .exp-block .hd { display: flex; align-items: center; padding: 14px 16px; font-weight: 700; color: var(--ink); cursor: pointer; border-bottom: 1.5px solid var(--petrol); }
+  .exp-block.closed .hd { border-bottom: 0; }
+  .exp-block.closed .bd { display: none; }
+  .exp-block .bd { padding: 14px 16px 4px; }
+  .rv { border: 1.5px solid #DCEDEA; border-radius: 16px; padding: 16px 18px; margin-bottom: 12px; }
+  .rv .hd { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #E5F1EF; }
+  .rv .hd .i { width: 34px; height: 34px; border-radius: 50%; background: var(--petrol); color: #fff; display: grid; place-items: center; }
+  .rv .hd .i .material-icons-round { font-size: 18px; }
+  .rv .hd b { flex: 1; color: var(--ink); }
+  .rv p { margin: 0 0 4px; font-size: .88rem; color: var(--muted); }
+  .rv p b { color: var(--text); font-weight: 600; }
+  .thumbs { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+  .thumbs div { width: 74px; height: 92px; border-radius: 10px; background: #ddd center/cover; position: relative; }
+  .thumbs button { position: absolute; top: -8px; right: -8px; width: 24px; height: 24px; border-radius: 50%; border: 0; background: var(--danger); color: #fff; cursor: pointer; font-size: 14px; display: grid; place-items: center; }
+  .success { text-align: center; padding: 30px 6px 10px; }
+  .success .big-ok { width: 110px; height: 110px; border-radius: 50%; border: 6px solid var(--lime); background: var(--petrol); display: grid; place-items: center; margin: 0 auto 18px; }
+  .success .big-ok .material-icons-round { font-size: 60px; color: var(--lime); }
+</style>
+</head>
+<body>
+<main id="page" class="content">
+  <div class="page-head">
+    <h1>Cómo preparar tu solicitud</h1>
+    <p>Antes de llenar el formulario, prepara tu video de casting y tus fotografías. Así tu perfil quedará completo y será revisado más rápido.</p>
+  </div>
+  <div id="svgwave"></div>
+
+  <div class="guide">
+    <div>
+      <h3 class="center">¿Cómo hacer tu video de casting?</h3>
+      <div class="vid-guide">
+        <div class="screen" id="play"><div class="play"></div></div>
+        <div class="cap">En esta guía aprenderás cómo realizar un video de casting, desde la preparación del espacio y la presentación personal hasta la grabación de la escena. Se explican algunos consejos básicos para lograr una buena iluminación, audio, encuadre y actuación frente a cámara.</div>
+      </div>
+    </div>
+    <div>
+      <h3 class="center">¿Cómo tomarse las fotos?</h3>
+      <div class="grid g2" id="shots" style="gap:16px"></div>
+    </div>
+  </div>
+
+  <section class="section center">
+    <h2>¿Ya tienes todo lo necesario?</h2>
+    <p class="muted">El registro tiene 5 pasos: datos personales, perfil artístico, experiencia, material y revisión.</p>
+    <button class="btn lime big btn-cta" id="open-reg" style="max-width:460px;margin:10px auto 0"><span class="ic-circle"><span class="material-icons-round">star</span></span> Rellena el formulario <span class="material-icons-round">arrow_forward</span></button>
+  </section>
+</main>
+<script src="js/app.js"></script>
+<script src="js/registro.js"></script>
+<script>
+shell({ active: 'postulaciones' });
+$('#svgwave').outerHTML = SVG.wave;
+
+const SHOTS = [
+  ['RETRATO FRONTAL', 'Foto de rostro frontal con fondo neutro y buena luz natural', 'head'],
+  ['PERFIL', 'Foto de perfil a la altura de los ojos y sin accesorios', 'side'],
+  ['CUERPO ENTERO', 'Foto de cuerpo entero con postura natural y ropa sencilla', 'full'],
+  ['PLANO MEDIO', 'Foto de la cintura hacia arriba mostrando tu expresión natural', 'mid']
+];
+const silueta = t => t === 'full'
+  ? `<svg class="body-ic" viewBox="0 0 60 120" style="width:38%"><circle cx="30" cy="16" r="12" fill="currentColor"/><path d="M14 34h32l4 46H38l-2 38H24l-2-38H10z" fill="currentColor"/></svg>`
+  : t === 'side'
+  ? `<svg class="body-ic" viewBox="0 0 100 100"><ellipse cx="54" cy="34" rx="18" ry="20" fill="currentColor"/><path d="M42 50c-20 4-30 20-30 50h76c0-30-14-46-34-50z" fill="currentColor"/></svg>`
+  : t === 'mid'
+  ? `<svg class="body-ic" viewBox="0 0 100 100"><circle cx="50" cy="26" r="16" fill="currentColor"/><path d="M18 100c0-34 12-54 32-54s32 20 32 54z" fill="currentColor"/></svg>`
+  : `<svg class="body-ic" viewBox="0 0 100 100"><circle cx="50" cy="36" r="20" fill="currentColor"/><path d="M14 100c0-26 16-40 36-40s36 14 36 40z" fill="currentColor"/></svg>`;
+$('#shots').innerHTML = SHOTS.map(s => `<div class="shot"><div class="frame">${silueta(s[2])}</div><b>${s[0]}</b><span>${s[1]}</span></div>`).join('');
+
+// Video guía: coloca tu archivo en public/media/guia-casting.mp4
+$('#play').onclick = () => {
+  const v = document.createElement('video');
+  v.src = 'media/guia-casting.mp4'; v.controls = true; v.autoplay = true;
+  v.onerror = () => { toast('El video guía aún no está disponible. Pronto lo publicaremos.', 'err'); v.replaceWith(play); };
+  const play = $('#play'); play.replaceWith(v);
+};
+
+$('#open-reg').onclick = abrirRegistro;
+if (location.hash === '#registro') abrirRegistro();
+</script>
+</body>
+</html>

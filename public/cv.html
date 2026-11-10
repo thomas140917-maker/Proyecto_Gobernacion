@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hoja de vida · Centro Actoral de Boyacá</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+<style>
+  body { font-family: 'Inter', sans-serif; color: #1E2F35; margin: 0; background: #EEF5F4; }
+  .sheet { max-width: 820px; margin: 24px auto; background: #fff; padding: 44px 50px; box-shadow: 0 10px 30px rgba(0,0,0,.08); }
+  .bar { max-width: 820px; margin: 18px auto 0; display: flex; justify-content: flex-end; gap: 10px; }
+  .bar button { background: #0E5B69; color: #fff; border: 0; border-radius: 30px; padding: 11px 22px; font: 700 .95rem 'Montserrat', sans-serif; cursor: pointer; }
+  header { display: flex; gap: 28px; align-items: center; border-bottom: 4px solid #1FD1B0; padding-bottom: 22px; }
+  header .ph { width: 140px; height: 175px; border-radius: 12px; background: #ddd center/cover; flex: none; }
+  h1 { font-family: 'Montserrat'; margin: 0 0 6px; color: #0E5B69; font-size: 2rem; }
+  h2 { font-family: 'Montserrat'; color: #0E5B69; font-size: 1rem; letter-spacing: .14em; text-transform: uppercase; margin: 26px 0 10px; }
+  .muted { color: #5F7A80; } .row { display: flex; justify-content: space-between; gap: 16px; padding: 7px 0; border-bottom: 1px solid #E8EFEF; font-size: .92rem; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+  .gal { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; } .gal div { aspect-ratio: 3/4; background: #ddd center/cover; border-radius: 8px; }
+  footer { margin-top: 30px; font-size: .75rem; color: #5F7A80; text-align: center; border-top: 1px solid #E8EFEF; padding-top: 12px; }
+  @media print { body { background: #fff; } .bar { display: none; } .sheet { box-shadow: none; margin: 0; padding: 20px; max-width: none; } }
+</style>
+</head>
+<body>
+<div class="bar"><button onclick="print()">Descargar / imprimir PDF</button></div>
+<div class="sheet" id="cv">Cargando...</div>
+<script src="js/app.js"></script>
+<script>
+catalogos().then(() => api('/api/actores/' + qs('id'))).then(a => {
+  document.title = 'CV ' + a.nombre;
+  const fotos = a.fotos.slice(0, 8).map(f => ({ url_archivo: f.url }));
+  $('#cv').innerHTML = `<header><div class="ph" style="${bg(a.foto)}"></div><div>
+      <h1>${esc(a.nombre)}</h1><div style="font-size:1.1rem">${esc(a.ocupacion || rolLabel(a))}</div>
+      <p class="muted">${esc(a.ciudad || '')}, Colombia${edadAparente(a) ? ' · Edad aparente ' + edadAparente(a) : ''}${a.estatura_cm ? ' · ' + a.estatura_cm + ' cm' : ''}</p>
+      <p class="muted">${esc([...a.areas, ...a.especialidades].join(' · '))}</p></div></header>
+    ${a.biografia ? `<h2>Perfil</h2><p>${esc(a.biografia)}</p>` : ''}
+    ${a.experiencias.length ? `<h2>Experiencia</h2>${a.experiencias.map(e => `<div class="row"><span><b>${esc(e.nombre_proyecto)}</b> — ${esc(e.rol_desempenado)} <span class="muted">(${esc(e.tipo_produccion)}${e.director_o_productora ? ', Dir. ' + esc(e.director_o_productora) : ''})</span></span><span>${e.anio}</span></div>`).join('')}` : ''}
+    <div class="cols"><div>
+      ${a.formacion.length ? `<h2>Formación</h2>${a.formacion.map(f => `<div class="row"><span>${esc(f.titulo)}<br><span class="muted">${esc(f.institucion || '')}</span></span><span>${esc(f.periodo || '')}</span></div>`).join('')}` : ''}
+      ${a.idiomas.length ? `<h2>Idiomas</h2>${a.idiomas.map(i => `<div class="row"><span>${esc(i.idioma)}</span><span class="muted">${esc(i.nivel || '')}</span></div>`).join('')}` : ''}
+    </div><div>
+      <h2>Características</h2>${[['Edad aparente', edadAparente(a)], ['Contextura', a.contextura], ['Ojos', etq('colores_ojos', a.color_ojos)], ['Cabello', etq('colores_cabello', a.color_cabello)], ['Tono de piel', etq('tonos_piel', a.tono_piel)], ['Dialecto', etq('dialectos', a.dialecto)], ['Vestuario', a.talla_ropa], ['Calzado', a.talla_calzado]].filter(r => r[1]).map(r => `<div class="row"><span class="muted">${r[0]}</span><span>${esc(r[1])}</span></div>`).join('') || '<p class="muted">—</p>'}
+      ${a.habilidades.some(h => h.nivel) ? `<h2>Habilidades</h2>${a.habilidades.filter(h => h.nivel).map(h => `<div class="row"><span>${esc(h.nombre)}</span><span class="muted">${esc(h.nivel)}</span></div>`).join('')}` : ''}
+    </div></div>
+    ${fotos.length ? `<h2>Book</h2><div class="gal">${fotos.map(f => `<div style="${bg(f.url_archivo)}"></div>`).join('')}</div>` : ''}
+    <h2>Contacto</h2><p>${esc(a.agencia_nombre || 'Centro Actoral de Boyacá')} · ${esc(a.agencia_correo || 'contacto@centroactoral.gov.co')}${a.videos[0] ? `<br>Reel: ${esc(a.videos[0].url)}` : ''}${a.enlaces[0] ? `<br>Portafolio: ${esc(a.enlaces[0].url)}` : ''}</p>
+    <footer>Perfil verificado por el Centro Actoral de Boyacá · ${location.origin}/perfil.html?id=${a.actor_id}</footer>`;
+}).catch(e => $('#cv').textContent = e.message);
+</script>
+</body>
+</html>

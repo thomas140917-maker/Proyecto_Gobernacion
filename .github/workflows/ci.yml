@@ -1,0 +1,71 @@
+﻿name: CI
+
+on:
+  push:
+    branches: [main, develop, 'feature/**']
+  pull_request:
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npx prisma generate
+      - run: npm test
+      - run: npm run build
+
+  imagen:
+    needs: pruebas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir imagen de la API
+        run: docker build -t centro-actoral-api:${{ github.sha }} .
+      - name: Construir imagen de respaldos
+        run: docker build -t centro-actoral-backup:${{ github.sha }} ./deploy/backup
+      - name: Validar scripts de respaldo
+        run: |
+          for f in deploy/backup/*.sh; do sh -n "$f"; done
+
+  # Despliegue a AWS ECS: solo desde main y si defines la variable del repositorio DEPLOY_ECS=true.
+  # Requiere un rol de GitHub OIDC (secret AWS_ROLE_ARN) y las variables ECR_REPOSITORY, ECS_CLUSTER, ECS_SERVICE, AWS_REGION.
+  desplegar-ecs:
+    needs: imagen
+    if: github.ref == 'refs/heads/main' && vars.DEPLOY_ECS == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Construir y subir la imagen
+        run: |
+          IMAGE="${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{ github.sha }}"
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+      - id: tarea
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: deploy/ecs/task-definition.json
+          container-name: api
+          image: ${{ env.IMAGE }}
+      - uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.tarea.outputs.task-definition }}
+          service: ${{ vars.ECS_SERVICE }}
+          cluster: ${{ vars.ECS_CLUSTER }}
+          wait-for-service-stability: true

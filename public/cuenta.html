@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mi perfil · Centro Actoral de Boyacá</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<style>
+  .me h2 { font-weight: 500; color: var(--ink); }
+  .me select { border: 0; background: none; font: 600 .85rem 'Montserrat', sans-serif; color: var(--ink); cursor: pointer; }
+</style>
+</head>
+<body>
+<main id="page" class="content me"><div class="spinner"></div></main>
+<script src="js/app.js"></script>
+<script>
+if (shell({ active: 'perfil', require: 'actor' })) {
+  let D, periodo = 'mes';
+  Promise.all([api('/api/mi-panel'), api('/api/yo').catch(() => ({}))]).then(([d, yo]) => { D = d; D.verificado = yo.correo_verificado !== false; D.correo = yo.correo; render(); }).catch(e => $('#page').innerHTML = `<div class="err-msg">${esc(e.message)}</div>`);
+
+  document.addEventListener('click', async e => {
+    if (e.target.id !== 'reenviar') return; e.preventDefault();
+    try { const r = await api('/api/reenviar-verificacion', { method: 'POST', body: {} }); toast(r.message); } catch (er) { toast(er.message, 'err'); }
+  });
+  function render() {
+    const p = D.perfil, clases = D.clases;
+    const est = { PENDIENTE: ['En revisión', ''], APROBADO: ['Perfil aprobado', 'lime'], RECHAZADO: ['Requiere ajustes', 'red'] }[p.estado];
+    const completadas = clases.filter(c => c.estado === 'COMPLETADA');
+    $('#page').innerHTML = `
+      <div class="me-banner">${SVG.banner}
+        <div style="position:absolute;right:20px;top:18px;display:flex;gap:10px">
+          <a class="icon-btn light" href="perfil.html?id=${p.actor_id}" title="Ver mi perfil público">${ic('visibility')}</a>
+          <a class="icon-btn light" href="editar.html" title="Editar perfil">${ic('edit')}</a></div></div>
+      <div class="me-head">
+        <a class="me-avatar" href="editar.html" style="${bg(p.foto)}" title="Cambiar foto">${p.foto ? '' : ic('person')}<span class="edit">${ic('edit')}</span></a>
+        <h1 style="font-weight:500;margin-top:14px">${esc(p.nombre)}</h1>
+        <p class="mb1">${esc(p.ocupacion || (p.nivel === 'Avanzado' ? 'Actor profesional' : 'Actor en formación'))}</p>
+        <div class="flex" style="justify-content:center"><span class="chip outline">${ic('star_outline')} Nivel ${esc((p.nivel || 'principiante').toLowerCase())}</span><span class="chip ${est[1]}">${est[0]}</span></div>
+      </div>
+
+      ${D.verificado ? '' : `<div class="ok-msg" id="verif">${ic('mark_email_unread')} Verifica tu correo (${esc(D.correo || '')}): te enviamos un enlace al registrarte. <a class="link" href="#" id="reenviar">Reenviar verificación</a></div>`}
+      ${p.estado === 'RECHAZADO' ? `<div class="err-msg">${ic('error_outline')} Tu solicitud necesita ajustes${p.motivo_rechazo ? ': ' + esc(p.motivo_rechazo) : ''}. <a class="link" href="editar.html">Editar perfil</a></div>` : ''}
+      ${p.tiene_cambios_pendientes ? `<div class="ok-msg">${ic('hourglass_top')} Tienes cambios de perfil en revisión. Tu perfil público se actualizará cuando sean aprobados.</div>` : ''}
+      ${p.estado === 'APROBADO' && !p.autoriza_vitrina_publica ? `<div class="ok-msg">${ic('visibility_off')} Tu perfil no aparece en la vitrina pública. Puedes autorizarlo en <a class="link" href="editar.html">Editar perfil</a>.</div>` : ''}
+      ${p.restringido ? `<div class="err-msg">${ic('block')} Tu perfil está restringido temporalmente por el equipo del Centro Actoral.</div>` : ''}
+      <section class="section"><div class="sec-head"><h2>Mis clases</h2>${clases.length > 3 ? '<button class="link" id="all-cl">Ver todas ' + ic('chevron_right') + '</button>' : ''}</div>
+        <div id="clases"></div></section>
+
+      <section class="section"><div class="sec-head"><h2>Mi progreso</h2>
+        <select id="per"><option value="mes">Este mes</option><option value="todo">Todo el tiempo</option></select></div>
+        <div id="prog"></div><p class="small muted center mt1">Progreso académico para el periodo seleccionado.</p></section>
+
+      <section class="section"><div class="sec-head"><h2>Mi trayectoria</h2></div><div id="tray"></div></section>
+
+      <section class="section"><div class="sec-head"><h2>Mis logros</h2></div>
+        <div class="grid g4" style="max-width:820px;margin:0 auto">${[
+          ['star_outline', 'Primer casting', D.postulaciones.length > 0],
+          ['check', `${completadas.length} clase${completadas.length === 1 ? '' : 's'} completada${completadas.length === 1 ? '' : 's'}`, completadas.length > 0],
+          ['photo_camera', 'Taller frente a cámara', completadas.some(c => /c[aá]mara/i.test(c.titulo + ' ' + (c.categoria || '')))],
+          ['how_to_reg', 'Perfil aprobado', p.estado === 'APROBADO']
+        ].map(([i, t, on]) => `<div class="badge-ach ${on ? '' : 'off'}" title="${on ? 'Logro obtenido' : 'Aún no obtenido'}"><div class="c">${ic(i)}</div>${t}</div>`).join('')}</div>
+        <p class="small muted center mt2">${ic('auto_awesome')} Tus logros se actualizan con tus cursos y postulaciones.</p></section>`;
+
+    const cardClase = c => `<a class="class-card" href="curso.html?id=${c.curso_id}"><div class="img" style="${bg(c.imagen_url)}">${c.imagen_url ? '' : ic('theater_comedy')}</div>
+      <div class="b"><b>${esc(c.titulo)}</b><div class="row"><span>${ic('schedule')} ${c.duracion_horas ? c.duracion_horas + ' h' : '—'}</span>
+        <span class="chip ${c.estado === 'COMPLETADA' ? 'lime' : 'turq'}">${c.estado === 'COMPLETADA' ? ic('check') + ' Completada' : c.estado === 'LISTA_ESPERA' ? 'Lista de espera #' + (c.posicion_lista_espera || '—') : c.estado === 'NO_COMPLETADA' ? 'No completada' : new Date(c.fecha_inicio_curso) > new Date() ? 'Próxima clase' : (c.progreso || 0) + '% avance'}</span></div></div></a>`;
+    const box = $('#clases');
+    box.className = 'hscroll';
+    box.innerHTML = clases.length ? clases.map(cardClase).join('') : `<div class="empty" style="grid-column:1/-1;width:100%">${ic('school')}Aún no estás inscrito en cursos.<br><a class="btn soft mt2" href="index.html">Ver cursos disponibles</a></div>`;
+    if ($('#all-cl')) $('#all-cl').onclick = e => { box.className = box.className === 'hscroll' ? 'grid g3' : 'hscroll'; e.target.closest('button').innerHTML = box.className === 'hscroll' ? 'Ver todas ' + ic('chevron_right') : 'Ver menos ' + ic('expand_less'); };
+    $('#per').value = periodo; $('#per').onchange = e => { periodo = e.target.value; progreso(); };
+    progreso();
+    $('#tray').innerHTML = clases.length ? `<div class="hscroll" style="grid-auto-columns:minmax(220px,250px)">${clases.map(c => `<div class="tl-card"><div class="ic">${ic(/c[aá]mara/i.test(c.titulo) ? 'photo_camera' : 'menu_book')}</div>
+      <small>${new Date(c.fecha_inicio_curso).getFullYear()}</small><b>${esc(c.titulo)}</b>
+      ${c.estado === 'COMPLETADA' ? `<span class="chip lime">${ic('check')} Completado</span>` : `<span class="chip" style="background:none;color:var(--petrol-3);padding:0">En progreso · ${c.progreso}%</span>`}</div>`).join('')}</div>`
+      : `<div class="empty">${ic('timeline')}Tu trayectoria aparecerá cuando te inscribas en cursos.</div>`;
+  }
+  function progreso() {
+    const desde = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const cl = D.clases.filter(c => periodo === 'todo' || new Date(c.inscrito_en) >= desde || c.estado !== 'COMPLETADA');
+    const cats = {};
+    cl.forEach(c => { const k = c.categoria || 'General'; (cats[k] = cats[k] || []).push(c.progreso); });
+    const items = Object.entries(cats);
+    $('#prog').innerHTML = items.length ? `<div class="grid g4" style="max-width:900px;margin:0 auto">${items.map(([k, v]) => {
+      const p = Math.round(v.reduce((a, b) => a + b, 0) / v.length);
+      return `<div class="center"><div class="ring" style="--p:${p}"><b>${p}<small>%</small></b></div><b style="color:var(--ink);font-size:.88rem">${esc(k)}</b></div>`;
+    }).join('')}</div>` : `<div class="empty">${ic('donut_large')}Sin progreso registrado en este periodo.</div>`;
+  }
+}
+</script>
+</body>
+</html>

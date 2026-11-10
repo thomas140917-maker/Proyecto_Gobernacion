@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Curso · Centro Actoral de Boyacá</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<style>
+  .course { display: grid; grid-template-columns: 1.35fr 1fr; gap: 40px; align-items: start; }
+  @media (max-width: 960px) { .course { grid-template-columns: 1fr; } }
+  .course .cover { border-radius: 18px; aspect-ratio: 16/10; background: var(--petrol-3) center/cover; display: grid; place-items: center; color: var(--turq); }
+  .course .cover .material-icons-round { font-size: 80px; }
+  .course .facts { display: flex; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 2px solid var(--turq); margin-bottom: 18px; flex-wrap: wrap; }
+  .course .facts b { color: #222; display: block; }
+  .course ul.req { list-style: none; padding: 0; }
+  .course ul.req li { padding-left: 22px; position: relative; margin-bottom: 8px; }
+  .course ul.req li::before { content: ''; position: absolute; left: 2px; top: 7px; width: 9px; height: 9px; border-radius: 50%; background: var(--turq); }
+  .insc { position: sticky; top: calc(var(--top-h) + 20px); }
+  .insc label { color: #fff !important; }
+  .insc .field input, .insc .field select { border-color: transparent; }
+</style>
+</head>
+<body>
+<main id="page" class="content">
+  <div id="svgwave"></div>
+  <div class="page-head center"><h2 style="font-weight:800;color:#111">Cursos</h2></div>
+  <div id="c"><div class="spinner"></div></div>
+</main>
+<script src="js/app.js"></script>
+<script>
+shell({ active: 'home' });
+$('#svgwave').outerHTML = SVG.wave;
+const id = qs('id');
+
+async function cargar() {
+  let c;
+  try { await catalogos(); c = await api('/api/cursos/' + id); }
+  catch (e) { $('#c').innerHTML = `<div class="empty">${ic('school')}${esc(e.message)}<br><a class="btn mt2" href="index.html">Volver al inicio</a></div>`; return; }
+  document.title = c.titulo + ' · Centro Actoral';
+  const reqs = (c.requisitos || '').split(/\n|•/).map(s => s.trim()).filter(Boolean);
+  const cupos = c.cupos_disponibles ?? null;
+  $('#c').innerHTML = `<div class="course">
+    <div>
+      <a class="link mb1" href="index.html">${ic('arrow_back')} Volver</a>
+      <h1 style="color:#111">${esc(c.titulo)}</h1>
+      <div class="cover" style="${bg(c.imagen_url)}">${c.imagen_url ? '' : ic('theater_comedy')}</div>
+      <div class="facts">
+        <div><b>Categoría</b><span class="muted">${esc(c.categoria || 'Formación')} · ${esc(etq('modalidades', c.modalidad) || 'Presencial')}${c.lugar ? ' · ' + esc(c.lugar) : ''}</span></div>
+        <div><b>Duración</b><span class="muted">${c.duracion_horas ? c.duracion_horas + ' horas' : 'Por definir'}</span></div>
+        <div><b>Cupos</b><span class="muted">${cupos === null ? 'Abiertos' : cupos + ' disponibles'}</span></div>
+        <div style="text-align:right"><b><i>${fecha(c.fecha_inicio_curso, true)}</i></b><span class="muted">Fecha de inicio${c.fecha_fin_curso ? ' · termina ' + fecha(c.fecha_fin_curso) : ''}</span></div>
+      </div>
+      <h3 style="color:#111">Resumen del programa</h3>
+      <p>${esc(c.descripcion || 'Pronto publicaremos más información de este curso.')}</p>
+      ${c.instructor ? `<p class="muted">${ic('person')} Instructor: <b>${esc(c.instructor)}</b></p>` : ''}
+      ${reqs.length ? `<h3 style="color:#111" class="mt2">Requerimientos</h3><ul class="req">${reqs.map(r => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}
+    </div>
+    <div class="insc"><div class="card-petrol" id="insc"></div></div>
+  </div>`;
+  pintarInscripcion(c, cupos);
+}
+
+async function pintarInscripcion(c, cupos) {
+  const box = $('#insc');
+  const mi = c.mi_inscripcion;
+  if (c.inscrito && mi) {
+    const lista = mi.estado === 'LISTA_ESPERA', fin = ['COMPLETADA', 'NO_COMPLETADA'].includes(mi.estado);
+    box.innerHTML = `<h2 class="center">Inscripción</h2><div class="center mt2">${ic(lista ? 'hourglass_top' : 'task_alt', 'style="font-size:64px;color:var(--lime)"')}
+      <h3 class="mt1">${lista ? 'Estás en la lista de espera' : mi.estado === 'COMPLETADA' ? '¡Curso completado!' : mi.estado === 'NO_COMPLETADA' ? 'Curso no completado' : '¡Ya estás inscrito!'}</h3>
+      <p>${lista ? `Tu posición es la <b>#${mi.posicion_lista_espera}</b>. Si se libera un cupo, pasarás a inscrito automáticamente.` : 'Puedes seguir tu avance en la sección <b>Mis clases</b> de tu perfil.'}</p>
+      <a class="btn lime block mt2" href="cuenta.html">Ir a mi perfil</a>
+      ${!fin && ['ABIERTO', 'EN_CURSO'].includes(c.estado) ? `<button class="btn outline block mt1" style="background:transparent;color:#fff;border-color:#fff" id="cancelar">${ic('event_busy')} ${lista ? 'Salir de la lista de espera' : 'Cancelar mi inscripción'}</button>` : ''}</div>`;
+    const cb = $('#cancelar');
+    if (cb) cb.onclick = async () => {
+      if (!await confirmBox({ title: lista ? '¿Salir de la lista de espera?' : '¿Cancelar tu inscripción?', text: 'Esta acción libera tu cupo.', ok: 'Sí, cancelar', danger: true, icon: 'event_busy' })) return;
+      try { await api(`/api/cursos/${c.curso_id}/inscripcion`, { method: 'DELETE' }); toast('Inscripción cancelada'); location.reload(); } catch (e) { toast(e.message, 'err'); }
+    };
+    return;
+  }
+  const cerrado = { EN_CURSO: 'El curso ya comenzó: las inscripciones están cerradas.', FINALIZADO: 'Este curso ya finalizó.', CANCELADO: 'Este curso fue cancelado.' }[c.estado];
+  if (cerrado) { box.innerHTML = `<h2 class="center">Inscripción</h2><p class="center">${cerrado}</p>`; return; }
+  if (new Date(c.fecha_inicio_inscripcion) > new Date()) { box.innerHTML = `<h2 class="center">Inscripción</h2><p class="center">Las inscripciones abren el <b>${fecha(c.fecha_inicio_inscripcion, true)}</b>.</p>`; return; }
+  if (S.rol !== 'actor') {
+    box.innerHTML = `<h2 class="center">Inscripción</h2>
+      <p class="center">${S.rol === 'admin' ? 'Estás viendo el curso como administrador.' : 'Para inscribirte debes tener una cuenta de actor o actriz en el Centro Actoral.'}</p>
+      ${S.rol ? '' : `<a class="btn lime block mt2" href="login.html?next=${encodeURIComponent('curso.html?id=' + c.curso_id)}">${ic('login')} Iniciar sesión</a>
+        <a class="btn turq block mt1" href="preparar.html">Crear mi perfil de actor</a>`}`; return;
+  }
+  box.innerHTML = `<div class="spinner"></div>`;
+  const p = await api('/api/mi-perfil');
+  const docs = { CC: 'Cédula de ciudadanía', CE: 'Cédula de extranjería', PASAPORTE: 'Pasaporte' };
+  box.innerHTML = `<h2 class="center">Inscripción</h2>
+    <div class="field"><label>Nombre completo *</label><div class="inp-ic">${ic('person_outline')}<input readonly value="${esc(p.nombre_completo)}"></div></div>
+    <div class="row2"><div class="field"><label>Tipo de documento *</label><input readonly value="${esc(docs[p.tipo_documento] || p.tipo_documento)}"></div>
+      <div class="field"><label>Número de documento *</label><input readonly value="${esc(p.numero_documento)}"></div></div>
+    <div class="row2"><div class="field"><label>Fecha de nacimiento *</label><input readonly value="${fecha(p.fecha_nacimiento)}"></div>
+      <div class="field"><label>Municipio / ciudad *</label><input readonly value="${esc(p.municipio || p.ciudad)}"></div></div>
+    <div class="field"><label>Correo electrónico *</label><div class="inp-ic">${ic('mail_outline')}<input readonly value="${esc(p.correo)}"></div></div>
+    <div class="field"><label>Teléfono *</label><div class="inp-ic">${ic('smartphone')}<input readonly value="${esc(p.telefono)}"></div></div>
+    <p class="small" style="opacity:.85">Estos datos vienen de tu perfil. Si necesitas cambiarlos, hazlo desde <a href="editar.html" style="text-decoration:underline">Editar perfil</a>.</p>
+    <label class="check mb2"><input type="checkbox" id="acepto"> <span>Acepto el tratamiento de mis datos personales según la <a href="#" data-legal="privacidad" style="text-decoration:underline;color:var(--turq)">política de privacidad</a>.</span></label>
+    <div id="i-err"></div>
+    <button class="btn turq block big" id="go">${cupos === 0 ? 'Unirme a la lista de espera' : 'Completar inscripción'}</button>
+    ${cupos === 0 ? '<p class="small center mt1" style="opacity:.85">El curso está lleno. Entrarás a la lista de espera y pasarás a inscrito si se libera un cupo.</p>' : ''}
+    ${c.solo_mayores_de_edad ? '<p class="small center mt1" style="opacity:.85">Curso solo para mayores de 18 años.</p>' : ''}`;
+  $$('[data-legal]', box).forEach(a => a.onclick = e => { e.preventDefault(); legal(a.dataset.legal); });
+  $('#go').onclick = async () => {
+    if (!$('#acepto').checked) { $('#i-err').innerHTML = `<div class="err-msg">Debes aceptar el tratamiento de datos.</div>`; return; }
+    $('#go').disabled = true;
+    try { const r = await api(`/api/cursos/${c.curso_id}/inscribir`, { method: 'POST' }); toast(r.message || '¡Inscripción completada!'); location.reload(); }
+    catch (e) { $('#go').disabled = false; $('#i-err').innerHTML = `<div class="err-msg">${esc(e.message)}</div>`; }
+  };
+}
+cargar();
+</script>
+</body>
+</html>

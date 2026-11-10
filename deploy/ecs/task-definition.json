@@ -1,0 +1,60 @@
+{
+  "family": "centro-actoral-api",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "runtimePlatform": { "cpuArchitecture": "X86_64", "operatingSystemFamily": "LINUX" },
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/centro-actoral-ecs-execution",
+  "taskRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/centro-actoral-ecs-task",
+  "volumes": [{ "name": "tmp" }],
+  "containerDefinitions": [
+    {
+      "name": "api",
+      "image": "<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/centro-actoral-api:latest",
+      "essential": true,
+      "readonlyRootFilesystem": true,
+      "mountPoints": [{ "sourceVolume": "tmp", "containerPath": "/tmp", "readOnly": false }],
+      "linuxParameters": { "initProcessEnabled": true, "capabilities": { "drop": ["ALL"] } },
+      "portMappings": [{ "containerPort": 3000, "protocol": "tcp" }],
+      "environment": [
+        { "name": "NODE_ENV", "value": "production" },
+        { "name": "PORT", "value": "3000" },
+        { "name": "RUN_MIGRATIONS", "value": "true" },
+        { "name": "TRUST_PROXY", "value": "true" },
+        { "name": "SWAGGER_ENABLED", "value": "false" },
+        { "name": "FRONTEND_URL", "value": "https://app.tudominio.com" },
+        { "name": "CORS_ORIGIN", "value": "https://app.tudominio.com" },
+        { "name": "VERIFY_BASE_URL", "value": "https://app.tudominio.com/verificar" },
+        { "name": "S3_BUCKET", "value": "centro-actoral-prod-media" },
+        { "name": "S3_REGION", "value": "<REGION>" },
+        { "name": "S3_FORCE_PATH_STYLE", "value": "false" },
+        { "name": "S3_AUTO_CREATE_BUCKET", "value": "false" },
+        { "name": "SMTP_HOST", "value": "email-smtp.<REGION>.amazonaws.com" },
+        { "name": "SMTP_PORT", "value": "587" },
+        { "name": "MAIL_FROM", "value": "Centro Actoral de Boyacá <no-reply@tudominio.com>" },
+        { "name": "INSTITUCION_NOMBRE", "value": "Centro Actoral de Boyacá" },
+        { "name": "INSTITUCION_CARGO", "value": "Director(a)" }
+      ],
+      "secrets": [
+        { "name": "DATABASE_URL", "valueFrom": "arn:aws:secretsmanager:<REGION>:<ACCOUNT_ID>:secret:centro-actoral/DATABASE_URL" },
+        { "name": "JWT_SECRET", "valueFrom": "arn:aws:secretsmanager:<REGION>:<ACCOUNT_ID>:secret:centro-actoral/JWT_SECRET" },
+        { "name": "CERT_HMAC_SECRET", "valueFrom": "arn:aws:secretsmanager:<REGION>:<ACCOUNT_ID>:secret:centro-actoral/CERT_HMAC_SECRET" },
+        { "name": "SMTP_USER", "valueFrom": "arn:aws:secretsmanager:<REGION>:<ACCOUNT_ID>:secret:centro-actoral/SMTP_USER" },
+        { "name": "SMTP_PASS", "valueFrom": "arn:aws:secretsmanager:<REGION>:<ACCOUNT_ID>:secret:centro-actoral/SMTP_PASS" }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""],
+        "interval": 30, "timeout": 5, "retries": 3, "startPeriod": 60
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/centro-actoral-api",
+          "awslogs-region": "<REGION>",
+          "awslogs-stream-prefix": "api"
+        }
+      }
+    }
+  ]
+}

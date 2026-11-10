@@ -1,0 +1,141 @@
+﻿services:
+  postgres:
+    image: postgres:16
+    container_name: ca_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Define POSTGRES_USER en .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: ${POSTGRES_DB:?Define POSTGRES_DB en .env}
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"   # solo accesible desde tu propio equipo
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Los .sql se ejecutan en orden alfabÃ©tico SOLO la primera vez (volumen vacÃ­o)
+      - ./db/migrations:/docker-entrypoint-initdb.d:ro
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: ca_pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:?Define PGADMIN_EMAIL en .env}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:?Define PGADMIN_PASSWORD en .env}
+    ports:
+      - "127.0.0.1:5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: ca_mailpit
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8025:8025"   # bandeja web (correos de recuperaciÃ³n)
+      - "127.0.0.1:1025:1025"   # SMTP
+    security_opt:
+      - no-new-privileges:true
+
+  minio:
+    image: pgsty/silo:RELEASE.2026-09-16T00-00-00Z   # en producciÃ³n fija una versiÃ³n (RELEASE.xxxx) o usa AWS S3
+    container_name: ca_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:?Define S3_ACCESS_KEY en .env}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?Define S3_SECRET_KEY en .env}
+    ports:
+      - "0.0.0.0:9000:9000"   # API S3 (las URLs firmadas apuntan aquÃ­)
+      - "127.0.0.1:9001:9001"   # consola web de MinIO
+    volumes:
+      - minio_data:/data
+    security_opt:
+      - no-new-privileges:true
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ca_api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env (openssl rand -hex 48)}
+      FRONTEND_URL: ${FRONTEND_URL:?Define FRONTEND_URL en .env}
+      CORS_ORIGIN: ${CORS_ORIGIN:?Define CORS_ORIGIN en .env}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}      # pon false en producciÃ³n
+      TRUST_PROXY: ${TRUST_PROXY:-}                  # true si hay nginx/Traefik delante
+      SMTP_HOST: ${SMTP_HOST:?Define SMTP_HOST en .env}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      MAIL_FROM: ${MAIL_FROM:?Define MAIL_FROM en .env}
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-false}      # en dev las aplica initdb; usa: docker compose exec api node dist/db/migrate.js
+      CERT_HMAC_SECRET: ${CERT_HMAC_SECRET:?Define CERT_HMAC_SECRET en .env (openssl rand -hex 48)}
+      CERT_P12_BASE64: ${CERT_P12_BASE64:-}
+      CERT_P12_PASSWORD: ${CERT_P12_PASSWORD:-}
+      CERT_VIGENCIA_DIAS: ${CERT_VIGENCIA_DIAS:-90}
+      VERIFY_BASE_URL: ${VERIFY_BASE_URL:-}
+      INSTITUCION_NOMBRE: ${INSTITUCION_NOMBRE:-Centro Actoral de BoyacÃ¡}
+      INSTITUCION_FIRMANTE: ${INSTITUCION_FIRMANTE:-DirecciÃ³n del Centro Actoral}
+      INSTITUCION_CARGO: ${INSTITUCION_CARGO:-Director(a)}
+      INSTITUCION_COLOR: ${INSTITUCION_COLOR:-#1F3A5F}
+      S3_ENDPOINT: ${S3_ENDPOINT-http://minio:9000}                 # vacÃ­o = AWS S3 real
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT-http://localhost:9000}  # host que usarÃ¡ el navegador en las URLs firmadas
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_BUCKET: ${S3_BUCKET:-centro-actoral}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?Define S3_ACCESS_KEY en .env}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?Define S3_SECRET_KEY en .env}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      S3_AUTO_CREATE_BUCKET: ${S3_AUTO_CREATE_BUCKET:-true}
+      SIGNED_URL_TTL: ${SIGNED_URL_TTL:-900}
+      ADMIN_SEED_EMAIL: ${ADMIN_SEED_EMAIL:-}
+      ADMIN_SEED_PASSWORD: ${ADMIN_SEED_PASSWORD:-}
+      # --- Sitio web (frontend en public/) ---
+      STORAGE: ${STORAGE:-s3}                        # s3 (MinIO/AWS). "local" no sirve aquÃ­: el contenedor es de solo lectura
+      UPLOADS_DIR: /app/uploads                      # solo para ver archivos de la base anterior (montaje de solo lectura)
+    volumes:
+      # Fotos/archivos de tu proyecto anterior (carpeta uploads/). Opcional: si no existe, Docker crea una vacÃ­a.
+      - ./uploads:/app/uploads:ro
+    ports:
+      - "0.0.0.0:3000:3000"   # en producciÃ³n, expÃ³n solo el reverse proxy
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+
+volumes:
+  pgdata:
+  pgadmin_data:
+  minio_data:

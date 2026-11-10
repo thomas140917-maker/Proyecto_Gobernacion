@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Historial de actividad · Centro Actoral de Boyacá</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<style>
+  .fbar { display: flex; gap: 10px; flex-wrap: wrap; margin: 22px 0; }
+  .fbar .pill { display: flex; align-items: center; gap: 8px; border: 1.5px solid var(--petrol); border-radius: 30px; padding: 6px 14px; color: var(--ink); font-weight: 600; font-size: .85rem; background: #fff; }
+  .fbar .pill input, .fbar .pill select { border: 0; font: 600 .85rem 'Montserrat', sans-serif; color: var(--ink); background: none; outline: none; }
+</style>
+</head>
+<body>
+<main id="page" class="content">
+  <div class="flex between wrap"><h1 class="mb0">Historial de actividad</h1><span class="chip outline"><span class="material-icons-round" style="font-size:16px">lock</span> Solo lectura</span></div>
+  <p class="muted mt1">Aquí puedes ver todos los movimientos y ediciones realizadas en la plataforma, tanto por usuarios como por el administrador.</p>
+  <div class="grid g4 mt2" id="stats"></div>
+  <div class="fbar">
+    <label class="pill"><span class="material-icons-round">calendar_today</span><input type="date" id="desde"> – <input type="date" id="hasta"></label>
+    <label class="pill"><select id="tipo"><option value="">Todos los tipos</option><option value="CREAR">Creaciones</option><option value="ACTUALIZAR">Actualizaciones</option><option value="ELIMINAR">Eliminaciones</option><option value="ACCION_ADMINISTRADOR">Acciones del administrador</option></select></label>
+    <label class="pill"><select id="rol"><option value="">Todos los roles</option><option value="usuario">Usuarios</option><option value="admin">Administrador</option></select></label>
+  </div>
+  <div class="card mb2"><div class="flex between wrap"><h2 class="mb0">Actividad por día</h2><div class="legend" id="legend"></div></div><div class="chart mt2" id="chart"></div></div>
+  <div class="sec-head mt3"><h2>Últimos movimientos</h2><button class="link" id="more">Ver todo <span class="material-icons-round">chevron_right</span></button></div>
+  <div class="feed" id="feed"><div class="spinner"></div></div>
+</main>
+<script src="js/app.js"></script>
+<script src="js/admin.js"></script>
+<script>
+if (shell({ active: 'historial', admin: true, require: 'admin' })) {
+  let todos = false, D;
+  const hoy = new Date();
+  $('#hasta').value = toInputDate(hoy); $('#desde').value = toInputDate(new Date(hoy - 29 * 864e5));
+  async function cargar() {
+    const p = new URLSearchParams({ desde: $('#desde').value, hasta: $('#hasta').value, tipo: $('#tipo').value, rol: $('#rol').value });
+    D = await api('/api/admin/historial?' + p);
+    const s = D.stats, pct = n => s.total ? Math.round(n * 100 / s.total) : 0;
+    const dias = Math.round((new Date(D.hasta) - new Date(D.desde)) / 864e5) + 1;
+    $('#stats').innerHTML = [['insights', s.total, 'Total de acciones', `Últimos ${dias} días`], ['group', s.usuarios, 'Acciones de usuarios', pct(s.usuarios) + '%'],
+      ['shield', s.admin, 'Acciones del administrador', pct(s.admin) + '%'], ['description', s.contenido, 'Cambios en contenido', 'Cursos, convocatorias y noticias']]
+      .map(([i, n, t, sub]) => `<div class="stat-card">${ic(i)}<b>${n}</b><span>${t}</span><small>${sub}</small></div>`).join('');
+    $('#legend').innerHTML = `<span><i style="background:var(--petrol)"></i> Usuarios ${pct(s.usuarios)}%</span><span><i style="background:var(--lime)"></i> Administrador ${pct(s.admin)}%</span>`;
+    const max = Math.max(5, ...D.porDia.map(d => Math.max(d.usuarios, d.admin)));
+    const top = Math.ceil(max / 5) * 5, paso = Math.max(1, Math.ceil(D.porDia.length / 10));
+    $('#chart').innerHTML = `<div class="yax">${[0, 1, 2, 3, 4, 5].map(i => `<span>${Math.round(top * i / 5)}</span>`).join('')}</div>
+      ${[1, 2, 3, 4, 5].map(i => `<div class="grid-l" style="bottom:${26 + 224 * i / 5}px"></div>`).join('')}
+      ${D.porDia.map((d, i) => `<div class="day" title="${d.dia}: ${d.usuarios} usuarios · ${d.admin} administrador"><i class="u" style="height:${d.usuarios / top * 100}%"></i><i class="a" style="height:${d.admin / top * 100}%"></i>${i % paso === 0 ? `<span class="lb">${d.dia}</span>` : ''}</div>`).join('')}`;
+    pintarFeed();
+  }
+  function pintarFeed() {
+    const L = todos ? D.movimientos : D.movimientos.slice(0, 10);
+    $('#feed').innerHTML = L.length ? L.map(feedItem).join('') : `<div class="empty" style="border:0">${ic('history')}No hay movimientos con estos filtros.</div>`;
+    $('#more').style.display = D.movimientos.length > 10 ? '' : 'none';
+    $('#more').innerHTML = todos ? 'Ver menos ' + ic('expand_less') : 'Ver todo ' + ic('chevron_right');
+  }
+  $('#more').onclick = () => { todos = !todos; pintarFeed(); };
+  ['desde', 'hasta', 'tipo', 'rol'].forEach(id => $('#' + id).onchange = () => cargar().catch(e => toast(e.message, 'err')));
+  cargar().catch(e => $('#feed').innerHTML = `<div class="err-msg">${esc(e.message)}</div>`);
+}
+</script>
+</body>
+</html>

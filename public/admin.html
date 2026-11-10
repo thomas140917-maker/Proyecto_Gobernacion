@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Panel administrador · Centro Actoral de Boyacá</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<main id="page" class="content">
+  <div class="page-head"><h1>Hola, Administrador</h1><p>Aquí tienes un resumen de lo que está pasando en el Centro Actoral.</p></div>
+  <div class="grid g4" id="stats"><div class="spinner"></div></div>
+  <div class="grid g2 section" style="align-items:start">
+    <div><h2>Accesos principales</h2><div class="grid" style="gap:14px" id="acc"></div></div>
+    <div><div class="sec-head"><h2>Actividad reciente</h2><a class="link" href="admin-historial.html">Ver todo <span class="material-icons-round">chevron_right</span></a></div><div class="feed" id="feed"></div></div>
+  </div>
+</main>
+<script src="js/app.js"></script>
+<script src="js/admin.js"></script>
+<script>
+if (shell({ active: 'panel', admin: true, require: 'admin' })) {
+  api('/api/admin/resumen').then(r => {
+    $('#stats').innerHTML = [
+      ['person_outline', r.pendientes, 'Solicitudes de perfil pendientes', 'admin-aprobacion.html'],
+      ['description', r.cambios + r.reportes, 'Cambios en perfiles y reportes', 'admin-perfiles.html'],
+      ['school', r.cursos_espera, 'Cursos en proceso de creación', 'admin-contenido.html'],
+      ['send', r.convocatorias, 'Convocatorias activas', 'admin-contenido.html']
+    ].map(([i, n, t, h]) => `<a class="stat-card" href="${h}">${ic(i)}<b>${n}</b><span>${t}</span></a>`).join('');
+    $('#acc').innerHTML = [
+      ['person_outline', 'Administración de perfiles', 'Revisa nuevas fotos, cambios en descripciones y gestiona restricciones.', 'admin-perfiles.html', r.cambios + r.reportes],
+      ['add_circle_outline', 'Creación de cursos, convocatorias y noticias', 'Gestiona el contenido del centro actoral.', 'admin-contenido.html', 0],
+      ['assignment_turned_in', 'Aprobación de perfiles', 'Revisa y aprueba las solicitudes de nuevos perfiles.', 'admin-aprobacion.html', r.pendientes],
+      ['schedule', 'Historial / Auditoría', 'Consulta todas las modificaciones realizadas en la plataforma.', 'admin-historial.html', 0]
+    ].map(([i, t, s, h, n]) => `<a class="access" href="${h}"><span class="ic">${ic(i)}</span><div><b>${t}</b><small>${s}</small></div>
+      ${n ? `<span class="chip lime" style="margin-left:auto">${n}</span>` : ''}<span class="go" ${n ? '' : 'style="margin-left:auto"'}>${ic('chevron_right')}</span></a>`).join('');
+    $('#feed').innerHTML = r.actividad.length ? r.actividad.map(feedItem).join('') : `<div class="empty" style="border:0">${ic('history')}Aún no hay actividad registrada.</div>`;
+  }).catch(e => $('#stats').innerHTML = `<div class="err-msg">${esc(e.message)}</div>`);
+}
+</script>
+</body>
+</html>

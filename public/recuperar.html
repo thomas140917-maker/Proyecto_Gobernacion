@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Recuperar contraseña · Centro Actoral de Boyacá</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<style>#page.content{max-width:none;padding:0}.pw{position:relative}.pw button{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:0;cursor:pointer;color:var(--muted)}</style>
+</head>
+<body>
+<main id="page" class="content">
+  <div class="auth-wrap">
+    <div class="auth-art"><div style="position:relative;max-width:460px">
+      <div class="brand mb2"><span class="logo"><span class="material-icons-round">theater_comedy</span></span><span><b style="color:#fff">CENTRO ACTORAL</b><small style="color:var(--lime)">DE BOYACÁ</small></span></div>
+      <h1>Recupera tu acceso</h1><p style="opacity:.9">Te enviaremos un enlace seguro a tu correo para que crees una nueva contraseña.</p></div></div>
+    <div class="auth-form"><div class="box" id="box"></div></div>
+  </div>
+</main>
+<script src="js/app.js"></script>
+<script>
+shell({});
+const box = $('#box');
+box.innerHTML = `<span class="eyebrow">Recuperar acceso</span><h1 class="mt1">¿Olvidaste tu contraseña?</h1>
+  <p class="muted">Escribe el correo con el que te registraste y te enviaremos un enlace para crear una nueva contraseña.</p><div id="err"></div>
+  <form id="f" class="mt2"><div class="field"><label>Correo electrónico</label><div class="inp-ic"><span class="material-icons-round">mail_outline</span><input type="email" name="correo" required autocomplete="username" placeholder="tucorreo@email.com"></div></div>
+  <button class="btn block big mt1" id="go">Enviar enlace</button></form>
+  <p class="small mt2"><a class="link" href="login.html">← Volver a iniciar sesión</a></p>`;
+$('#f').onsubmit = async e => {
+  e.preventDefault(); const b = $('#go'); b.disabled = true; b.textContent = 'Enviando...';
+  try {
+    const d = await api('/api/olvide-contrasena', { method: 'POST', body: { correo: e.target.correo.value.trim() } });
+    box.innerHTML = `<div class="big-ok">${ic('mark_email_read')}</div><h1 class="mt1">Revisa tu correo</h1><p class="muted">${esc(d.message)}</p>
+      <p class="small muted">El enlace vale 30 minutos y solo se puede usar una vez.</p><a class="btn outline block mt2" href="login.html">Volver a iniciar sesión</a>`;
+  } catch (er) { $('#err').innerHTML = `<div class="err-msg">${esc(er.message)}</div>`; b.disabled = false; b.textContent = 'Enviar enlace'; }
+};
+</script>
+</body>
+</html>

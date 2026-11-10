@@ -1,0 +1,18 @@
+{
+  "Rules": [
+    {
+      "ID": "expirar-respaldos-diarios-30-dias",
+      "Filter": { "Prefix": "postgres/" },
+      "Status": "Enabled",
+      "Expiration": { "Days": 30 },
+      "AbortIncompleteMultipartUpload": { "DaysAfterInitiation": 7 }
+    },
+    {
+      "ID": "expirar-respaldos-mensuales-12-meses",
+      "Filter": { "Prefix": "postgres-mensual/" },
+      "Status": "Enabled",
+      "Expiration": { "Days": 365 },
+      "AbortIncompleteMultipartUpload": { "DaysAfterInitiation": 7 }
+    }
+  ]
+}

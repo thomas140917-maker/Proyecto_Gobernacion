@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Perfil · Centro Actoral de Boyacá</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<main id="page" class="content pfont"><div class="spinner"></div></main>
+<script src="js/app.js"></script>
+<script>
+shell({ active: 'actores' });
+const id = qs('id');
+let A;
+const TABS = [['fotos', 'Fotos'], ['exp', 'Experiencia'], ['car', 'Características'], ['hab', 'Habilidades y formación'], ['media', 'Material audiovisual'], ['contacto', 'Contacto']];
+
+catalogos().then(() => api('/api/actores/' + id)).then(a => {
+  A = a; document.title = a.nombre + ' · Centro Actoral';
+  const roles = a.ocupacion || [rolLabel(a), ...a.areas.slice(0, 2)].join(' · ');
+  $('#page').innerHTML = `
+    ${a.estado && a.estado !== 'APROBADO' ? `<div class="ok-msg">${ic('visibility')} Vista previa: tu perfil aún no es público (estado: ${esc(a.estado.toLowerCase())}). Así se verá cuando sea aprobado.</div>` : ''}
+    <div class="flex between wrap mb2">
+      <div class="flex small muted"><a class="link" href="actores.html" style="font-weight:500">${ic('arrow_back')} Artistas</a> / <b style="color:#222">${esc(a.nombre)}</b></div>
+      <button class="link small" id="share">${ic('share')} Compartir perfil</button>
+    </div>
+    <div class="profile-top">
+      <div class="profile-photo" style="${bg(a.foto)}">${a.foto ? '' : ic('person')}</div>
+      <div>
+        <div class="small" style="color:var(--turq-2)">${a.disponible ? '<span class="chip" style="background:none;padding:0;color:var(--turq-2)"><span class="dot"></span> Disponible para nuevos proyectos</span>' : '<span class="muted">No disponible por ahora</span>'}</div>
+        <h1 class="mt1">${esc(a.nombre)}</h1>
+        <p style="font-size:1.2rem;color:var(--muted)">${esc(roles)}</p>
+        <p class="muted small">${ic('place')} ${esc(a.ciudad || '')}, Colombia${a.disponibilidad_viajar ? ' · Disponibilidad para viajar' : ''}${edadAparente(a) ? ` · Edad aparente ${edadAparente(a)}` : ''}</p>
+        <div class="flex wrap mb2">${[...a.areas, ...a.especialidades].map(x => `<span class="chip turq">${esc(x)}</span>`).join('')}</div>
+        <p style="font-size:1.02rem;line-height:1.7">${esc(a.biografia || 'Este artista aún no ha agregado una biografía.')}</p>
+        <div class="flex wrap mt2">
+          <button class="btn lime" id="contactar">${ic('mail_outline')} Contactar</button>
+          <a class="btn outline" href="cv.html?id=${a.actor_id}" target="_blank">${ic('download')} Descargar CV</a>
+        </div>
+        <button class="link small mt2" id="reportar" style="color:var(--muted);font-weight:500">${ic('flag')} Reportar este perfil</button>
+      </div>
+    </div>
+    <div class="ptabs">${TABS.map(([k, t], i) => `<button data-t="${k}" class="${i ? '' : 'on'}">${t}</button>`).join('')}</div>
+    <div id="tab"></div>`;
+  $$('.ptabs button').forEach(b => b.onclick = () => { $$('.ptabs button').forEach(x => x.classList.toggle('on', x === b)); tab(b.dataset.t); });
+  $('#contactar').onclick = () => { $$('.ptabs button').forEach(x => x.classList.toggle('on', x.dataset.t === 'contacto')); tab('contacto'); $('.ptabs').scrollIntoView({ behavior: 'smooth' }); };
+  $('#share').onclick = async () => { try { await navigator.clipboard.writeText(location.href); toast('Enlace del perfil copiado'); } catch { prompt('Copia el enlace del perfil:', location.href); } };
+  $('#reportar').onclick = async () => {
+    const r = await confirmBox({ title: 'Reportar perfil', text: 'Cuéntanos por qué este perfil incumple las normas. El equipo del Centro Actoral lo revisará.', ok: 'Enviar reporte', icon: 'flag', input: { label: 'Motivo del reporte', placeholder: 'Ej. Contenido no apropiado en las fotografías' } });
+    if (!r) return;
+    try { await api(`/api/actores/${id}/reportar`, { method: 'POST', body: { motivo: r.value } }); toast('Gracias, recibimos tu reporte'); } catch (e) { toast(e.message, 'err'); }
+  };
+  tab('fotos');
+}).catch(e => $('#page').innerHTML = `<div class="empty">${ic('person_off')}${esc(e.message)}<br><a class="btn mt2" href="actores.html">Ver otros perfiles</a></div>`);
+
+function tab(k) {
+  const a = A, box = $('#tab');
+  const vacio = t => `<div class="empty">${ic('info')}${t}</div>`;
+  if (k === 'fotos') {
+    const fotos = [(a.foto_grande || a.foto) ? { url_archivo: a.foto_grande || a.foto, thumb: a.foto, titulo: 'Retrato', descripcion: 'Foto de perfil' } : null, ...a.fotos.map(f => ({ url_archivo: f.url, thumb: f.miniatura, titulo: f.titulo }))].filter(Boolean);
+    box.innerHTML = `<h2>Fotografías</h2><p class="muted">Una mirada a mis registros y expresiones.</p>
+      ${fotos.length ? `<div class="gal">${fotos.map(f => `<div><div class="ph" data-src="${esc(f.url_archivo)}" style="${bg(f.thumb || f.url_archivo)}"></div><b class="small" style="display:block;margin-top:8px">${esc(f.titulo || 'Fotografía')}</b><span class="small muted">${esc(f.descripcion || '')}</span></div>`).join('')}</div>
+        <a class="link mt2" href="cv.html?id=${a.actor_id}" target="_blank">Descargar book ${ic('north_east')}</a>` : vacio('Aún no hay fotografías.')}`;
+    $$('.gal .ph', box).forEach(p => p.onclick = () => lightbox(p.dataset.src));
+  }
+  if (k === 'exp') box.innerHTML = `<h2>Experiencia</h2><p class="muted">Una selección de mis trabajos en escena y pantalla.</p>
+    ${a.experiencias.length ? a.experiencias.map(e => `<div class="exp-item"><div><b>${esc(e.nombre_proyecto)}</b><small>${esc(e.tipo_produccion)}</small>
+      <div class="mt1">${esc(e.rol_desempenado)}</div>${e.director_o_productora ? `<small>Dir. ${esc(e.director_o_productora)}</small>` : ''}</div><span class="muted">${e.anio}</span></div>`).join('')
+      + (a.especialidades.length ? `<p class="small muted mt2">${ic('auto_awesome')} Especialidades: ${esc(a.especialidades.join(', ').toLowerCase())}.</p>` : '')
+      : vacio('Sin experiencia profesional registrada.')}`;
+  if (k === 'car') {
+    const rows = [['Edad aparente', edadAparente(a)], ['Estatura', a.estatura_cm ? a.estatura_cm + ' cm' : ''], ['Contextura', a.contextura], ['Ojos', etq('colores_ojos', a.color_ojos)], ['Cabello', etq('colores_cabello', a.color_cabello)], ['Tono de piel', etq('tonos_piel', a.tono_piel)], ['Talla de vestuario', a.talla_ropa], ['Calzado', a.talla_calzado], ['Género', etq('generos', a.genero)], ['Provincia', etq('provincias', a.provincia)]].filter(r => r[1]);
+    box.innerHTML = `<h2>Características</h2>${rows.length ? `<table class="dl" style="max-width:640px">${rows.map(r => `<tr><td>${r[0]}</td><td>${esc(r[1])}</td></tr>`).join('')}</table>` : vacio('Sin características registradas.')}
+      ${a.dialecto ? `<p class="small muted mt2">Dialecto / acento: ${esc(etq('dialectos', a.dialecto))}</p>` : ''}`;
+  }
+  if (k === 'hab') box.innerHTML = `<div class="grid g2" style="gap:40px">
+      <div><h2>Habilidades e idiomas</h2>
+        ${a.habilidades.length ? `<table class="dl">${a.habilidades.map(h => `<tr><td style="color:#222">${esc(h.nombre)}</td><td class="muted">${esc(h.nivel || (h.tipo === 'AREA' ? 'Área' : 'Especialidad'))}</td></tr>`).join('')}</table>` : ''}
+        ${a.idiomas.length ? `<table class="dl mt2">${a.idiomas.map(i => `<tr><td style="color:#222">${esc(i.idioma)}</td><td class="muted">${esc(i.nivel || '')}</td></tr>`).join('')}</table>` : ''}
+        ${!a.habilidades.length && !a.idiomas.length ? vacio('Sin habilidades registradas.') : ''}</div>
+      <div><h2>Formación</h2>${a.formacion.length ? a.formacion.map(f => `<div class="mb2"><small style="color:var(--petrol-3)">${esc(f.periodo || '')}</small><div style="color:#222;margin:2px 0">${esc(f.titulo)}</div><small class="muted">${esc(f.institucion || '')}</small></div>`).join('') : vacio('Sin formación registrada.')}</div></div>`;
+  if (k === 'media') {
+    box.innerHTML = `<h2>Material audiovisual</h2><p class="muted">Interpretación, movimiento y voz en distintos registros.</p>
+      <div class="grid g2">${a.videos.map(v => `<div>${embedVideo(v)}<b class="small" style="display:block;margin-top:8px">${esc(v.titulo || 'Video')}</b></div>`).join('')}</div>
+      ${!a.videos.length && !a.enlaces.length ? vacio('Aún no hay material audiovisual.') : ''}
+      ${a.enlaces.map(e => `<a class="link mt2" style="display:flex" href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.titulo || 'Portafolio')} ${ic('north_east')}</a>`).join('')}`;
+  }
+  if (k === 'contacto') {
+    const correo = a.agencia_correo || 'contacto@centroactoral.gov.co';
+    box.innerHTML = `<div style="max-width:640px"><span class="eyebrow" style="color:var(--petrol-3)">Contacto profesional</span>
+      <h2 style="font-size:2rem;margin-top:8px">¿Creamos una historia juntos?</h2>
+      <p class="muted">Para castings, proyectos y colaboraciones, ${a.agencia_nombre ? 'contacta con mi representación' : 'escribe al Centro Actoral de Boyacá, que gestiona este perfil'}.</p>
+      <b>${esc(a.agencia_nombre || 'Centro Actoral de Boyacá')}</b><br><a class="link" style="font-weight:500" href="mailto:${esc(correo)}">${esc(correo)}</a>
+      ${a.redes.length ? `<div class="flex wrap mt2">${a.redes.map(r => `<a class="chip outline" target="_blank" rel="noopener" href="${esc(/^https?:/.test(r.url_perfil) ? r.url_perfil : '#')}">${esc(r.plataforma)}: ${esc(r.url_perfil.replace(/^https?:\/\/(www\.)?/, ''))}</a>`).join('')}</div>` : ''}
+      <a class="btn lime block mt3" href="mailto:${esc(correo)}?subject=${encodeURIComponent('Contacto para ' + a.nombre + ' - Centro Actoral')}">${ic('mail_outline')} Enviar mensaje</a>
+      <a class="btn outline block mt1" href="cv.html?id=${a.actor_id}" target="_blank">${ic('download')} Descargar CV</a></div>`;
+  }
+}
+</script>
+</body>
+</html>

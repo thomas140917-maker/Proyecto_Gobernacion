@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cursos, convocatorias y noticias · Centro Actoral de Boyacá</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<style>
+  .csec { padding-bottom: 30px; border-bottom: 1.5px solid var(--turq); margin-bottom: 30px; }
+  .csec:last-child { border: 0; }
+  .csec h2 { display: flex; align-items: center; gap: 10px; margin: 0; }
+  .item .info b { font-size: .95rem; }
+  .item .meta { color: var(--ink) !important; }
+  .item .meta .material-icons-round { color: var(--petrol); }
+  .item .snip { color: var(--turq-2); font-size: .78rem; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .counter { text-align: right; font-size: .72rem; color: var(--turq-2); margin-top: 4px; }
+  .insc-row { display: grid; grid-template-columns: 46px 1fr 200px 70px; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid #E3F1EE; }
+</style>
+</head>
+<body>
+<main id="page" class="content">
+  <div class="page-head"><h1>Gestión de cursos, convocatorias y noticias</h1><p>Crea, edita y administra el contenido del centro actoral.</p></div>
+  <div id="secs"><div class="spinner"></div></div>
+</main>
+<script src="js/app.js"></script>
+<script src="js/admin.js"></script>
+<script>
+if (shell({ active: 'contenido', admin: true, require: 'admin' })) {
+  let D; const abiertos = {};
+  const CATS = ['Actuación', 'Actuación frente a cámara', 'Expresión corporal', 'Voz y dicción', 'Improvisación', 'Dramaturgia', 'Danza', 'Producción audiovisual', 'Fotografía', 'Otra'];
+  const TIPOS = ['Casting', 'Proyecto audiovisual', 'Obra de teatro', 'Comercial', 'Taller', 'Beca', 'Convocatoria institucional'];
+  const NCATS = ['Convocatorias', 'Formación', 'Eventos', 'Institucional', 'Logros del talento'];
+  const hoy = () => new Date(new Date().toDateString());
+  const chipCurso = c => ({ ABIERTO: '<span class="chip lime">Inscripciones abiertas</span>', EN_CURSO: '<span class="chip turq">En curso</span>', BORRADOR: '<span class="chip outline">Borrador</span>', FINALIZADO: '<span class="chip">Finalizado</span>', CANCELADO: '<span class="chip red">Cancelado</span>' }[c.estado] || '');
+  const chipConv = c => ({ ACTIVA: '<span class="chip lime">Activa</span>', PROXIMA: '<span class="chip turq">Próxima</span>', EN_PAUSA: '<span class="chip outline">En pausa / borrador</span>', CERRADA: '<span class="chip">Cerrada</span>' }[c.estado] || '');
+  const MODS = [['PRESENCIAL', 'Presencial'], ['VIRTUAL', 'Virtual'], ['HIBRIDA', 'Híbrida']];
+  const chipNot = n => n.borrador ? '<span class="chip outline">Borrador</span>' : new Date(n.publicado_en) > new Date() ? '<span class="chip turq">Programada</span>' : '<span class="chip petrol">Publicado</span>';
+
+  async function cargar() {
+    await catalogos();
+    D = await api('/api/admin/contenido');
+    const sec = (k, icon, t, desc, btn, items, row) => `<div class="csec"><div class="sec-head"><h2>${ic(icon)} ${t}</h2>${items.length > 3 ? `<button class="link" data-all="${k}">${abiertos[k] ? 'Ver menos' : 'Ver todos'} ${ic('chevron_right')}</button>` : ''}</div>
+      <div class="flex between wrap mb2"><p class="muted mb0" style="max-width:560px">${desc}</p><button class="btn" data-new="${k}">${ic('add')} ${btn}</button></div>
+      <div class="grid g3" style="gap:14px">${items.length ? (abiertos[k] ? items : items.slice(0, 3)).map(row).join('') : `<div class="empty" style="grid-column:1/-1">${ic(icon)}Aún no hay ${t.toLowerCase()}.</div>`}</div></div>`;
+    $('#secs').innerHTML =
+      sec('cursos', 'school', 'Cursos', 'Administra los cursos disponibles, crea nuevos y edita la información, horarios y cupos.', 'Crear curso', D.cursos,
+        c => `<div class="list-card item" style="margin:0;cursor:pointer" data-ed="cursos" data-id="${c.curso_id}"><div class="tile" style="${bg(c.imagen_url)}">${c.imagen_url ? '' : ic('image')}</div>
+          <div class="info"><div class="flex between" style="align-items:flex-start"><b>${esc(c.titulo)}</b>${chipCurso(c)}</div>
+          <div class="meta" style="flex-direction:column;gap:2px"><span>${ic('event')} Inicio: ${fecha(c.fecha_inicio_curso)}</span><span>${ic('group')} ${c.inscritos} inscritos${c.cupo_maximo ? ' de ' + c.cupo_maximo : ''}${c.en_lista_espera ? ' · ' + c.en_lista_espera + ' en espera' : ''}</span><span>${ic('tune')} ${esc(etq('modalidades', c.modalidad))}</span></div></div>${ic('chevron_right')}</div>`) +
+      sec('convocatorias', 'campaign', 'Convocatorias', 'Publica y gestiona las convocatorias abiertas para cursos, proyectos y castings.', 'Crear convocatoria', D.convocatorias,
+        c => `<div class="list-card item" style="margin:0;cursor:pointer" data-ed="convocatorias" data-id="${c.convocatoria_id}"><div class="tile" style="${bg(c.imagen_url)}">${c.imagen_url ? '' : ic('image')}</div>
+          <div class="info"><div class="flex between" style="align-items:flex-start"><b>${esc(c.titulo)}</b>${chipConv(c)}</div>
+          <div class="meta" style="flex-direction:column;gap:2px"><span>${ic('event')} Fecha límite: ${fecha(c.fecha_cierre)}</span><span>${ic('group')} ${c.cupo_maximo || '—'} vacantes · ${c.postulantes} postulantes${c.seleccionados ? ' · ' + c.seleccionados + ' seleccionados' : ''}</span></div></div>${ic('chevron_right')}</div>`) +
+      sec('noticias', 'article', 'Noticias', 'Comparte novedades, eventos y comunicados del centro actoral.', 'Crear noticia', D.noticias,
+        n => `<div class="list-card item" style="margin:0;cursor:pointer" data-ed="noticias" data-id="${n.noticia_id}"><div class="tile" style="${bg(n.imagen_url)}">${n.imagen_url ? '' : ic('image')}</div>
+          <div class="info"><div class="flex between" style="align-items:flex-start"><b>${esc(n.titulo)}</b>${chipNot(n)}</div>
+          <div class="meta"><span>${ic('event')} Publicado el ${fecha(n.publicado_en)}</span></div><div class="snip">${esc(n.resumen_para_carta)}</div></div>${ic('chevron_right')}</div>`);
+    $$('[data-all]').forEach(b => b.onclick = () => { abiertos[b.dataset.all] = !abiertos[b.dataset.all]; cargar(); });
+    $$('[data-new]').forEach(b => b.onclick = () => FORM[b.dataset.new]());
+    $$('[data-ed]').forEach(b => b.onclick = () => { const k = b.dataset.ed, pk = { cursos: 'curso_id', convocatorias: 'convocatoria_id', noticias: 'noticia_id' }[k]; FORM[k](D[k].find(x => x[pk] === b.dataset.id)); });
+  }
+
+  // --- formulario genérico
+  function abrirForm({ tipo, titulo, icon, x, campos, pk, extra }) {
+    const editando = !!x;
+    const m = modal({ size: 'lg', petrol: true, icon, title: editando ? 'Editar ' + titulo : 'Crear ' + (tipo === 'cursos' ? 'nuevo curso' : titulo), body: `<div id="ferr" class="mt2"></div>${campos}<div class="field"><label>Imagen ${tipo === 'noticias' ? 'principal' : 'de portada'}</label><div id="img"></div>${x && x.imagen_url ? '<label class="check mt1"><input type="checkbox" id="qimg"> Quitar la imagen actual</label>' : ''}</div>${extra || ''}`,
+      foot: `${editando ? `<button class="btn danger" id="del" style="flex:0">${ic('delete_outline')}</button>` : ''}<button class="btn" id="pub"><span style="color:var(--lime)">${editando ? 'Guardar y publicar' : 'Publicar ' + titulo}</span></button>
+        <button class="btn outline" id="can">Cancelar</button><button class="btn turq" id="bor">Guardar borrador</button>` });
+    m.$('.modal-b').style.paddingTop = '0';
+    const getImg = imagePicker(m.$('#img'), x && x.imagen_url);
+    m.$('#can').onclick = m.close;
+    m.$$('.toggle-group').forEach(g => g.querySelectorAll('button').forEach(b => b.onclick = () => { g.querySelectorAll('button').forEach(o => o.classList.toggle('on', o === b)); }));
+    m.$$('.multi-group button').forEach(b => b.onclick = () => b.classList.toggle('on'));
+    m.$$('[data-count]').forEach(t => { const c = t.parentElement.querySelector('.counter'); const up = () => c.textContent = `${t.value.length}/${t.maxLength}`; t.oninput = up; up(); });
+    const send = async borrador => {
+      const fd = new FormData();
+      m.$$('[name]').forEach(i => fd.append(i.name, i.type === 'checkbox' ? (i.checked ? 'true' : 'false') : i.value.trim()));
+      m.$$('.toggle-group').forEach(g => fd.append(g.dataset.name, g.querySelector('.on').dataset.v));
+      m.$$('.multi-group').forEach(g => fd.append(g.dataset.name, JSON.stringify([...g.querySelectorAll('.on')].map(b => b.dataset.v))));
+      if (editando && tipo === 'convocatorias') {   // campos que el formulario no muestra: se conservan tal cual
+        for (const k of ['tonos_piel', 'colores_ojos', 'colores_cabello', 'dialectos', 'municipios']) fd.append(k, JSON.stringify(x[k] || []));
+        fd.append('habilidades', JSON.stringify((x.habilidades || []).map(h => ({ habilidad_id: h.habilidad_id, obligatoria: h.obligatoria }))));
+        if (!borrador && x.estado === 'EN_PAUSA') fd.append('estado', 'ACTIVA');
+      }
+      if (tipo === 'cursos') fd.append('publicar', borrador ? 'false' : 'true');
+      const ed = m.$('.editor .area'); if (ed) fd.append('resumen_para_galeria', ed.innerHTML);
+      fd.append('borrador', borrador);
+      const img = getImg(); if (img) fd.append('imagen', img);
+      if (m.$('#qimg') && m.$('#qimg').checked) fd.append('quitar_imagen', 'true');
+      const falta = m.$$('[data-req]').find(i => !String(i.value ?? i.textContent).trim());
+      if (!borrador && falta) { m.$('#ferr').innerHTML = `<div class="err-msg">Completa los campos obligatorios (*).</div>`; falta.focus && falta.focus(); return; }
+      if (!m.$('[name=titulo]').value.trim()) { m.$('#ferr').innerHTML = `<div class="err-msg">El título es obligatorio.</div>`; return; }
+      try {
+        await api(`/api/admin/${tipo}${editando ? '/' + x[pk] : ''}`, { method: editando ? 'PUT' : 'POST', body: fd });
+        m.close(); toast(borrador ? 'Borrador guardado' : editando ? 'Cambios publicados' : 'Publicado correctamente'); cargar();
+      } catch (e) { m.$('#ferr').innerHTML = `<div class="err-msg">${esc(e.message)}</div>`; }
+    };
+    m.$('#pub').onclick = () => send(false); m.$('#bor').onclick = () => send(true);
+    if (editando) m.$('#del').onclick = async () => {
+      if (!await confirmBox({ title: '¿Eliminar definitivamente?', text: `Se eliminará "${x.titulo}" y no se puede deshacer.`, ok: 'Eliminar', danger: true, icon: 'delete' })) return;
+      try { await api(`/api/admin/${tipo}/${x[pk]}`, { method: 'DELETE' }); m.close(); toast('Eliminado'); cargar(); } catch (e) { toast(e.message, 'err'); }
+    };
+    return m;
+  }
+  const val = (x, k) => esc(x ? x[k] ?? '' : '');
+  const opts = (arr, v) => `<option value="">Selecciona una opción</option>` + arr.map(o => `<option ${o === v ? 'selected' : ''}>${o}</option>`).join('');
+  const toggle = (name, arr, v) => `<div class="toggle-group" data-name="${name}">${arr.map(([k, t], i) => `<button type="button" data-v="${k}" class="${(v ? k === v : i === 0) ? 'on' : ''}">${t}</button>`).join('')}</div>`;
+  const multi = (name, lista, sel) => `<div class="multi-group opt-group" data-name="${name}">${((window.CATALOGOS || {})[lista] || []).map(o => `<button type="button" class="opt ${(sel || []).includes(o.codigo) ? 'on' : ''}" data-v="${esc(o.codigo)}">${esc(o.etiqueta)}</button>`).join('')}</div>`;
+  const cambiarEstado = async (url, estado, msg, m) => {
+    const r = await confirmBox({ title: msg, text: 'Puedes registrar un motivo para el historial.', ok: 'Confirmar', icon: 'swap_horiz', input: { label: 'Motivo', optional: true } });
+    if (!r) return;
+    try { await api(url, { method: 'PUT', body: { estado, motivo: r.value } }); toast('Estado actualizado'); m.close(); cargar(); } catch (e) { toast(e.message, 'err'); }
+  };
+
+  const FORM = {
+    cursos: x => {
+      const m = abrirForm({ tipo: 'cursos', titulo: 'curso', icon: 'school', x, pk: 'curso_id', campos: `
+        <p class="small muted">Publica una nueva oportunidad de formación para actores y actrices.</p>
+        <div class="field"><label>Nombre del curso <span class="req">*</span></label><input name="titulo" data-req value="${val(x, 'titulo')}" placeholder="Ej. Manejo de cámara para actores"></div>
+        <div class="row2"><div class="field"><label>Categoría <span class="req">*</span></label><select name="categoria" data-req>${opts(CATS, x && x.categoria)}</select></div>
+          <div class="field"><label>Tipo</label>${toggle('tipo', [['CURSO', 'Curso'], ['TALLER', 'Taller']], x && x.tipo)}</div></div>
+        <div class="row2"><div class="field"><label>Modalidad <span class="req">*</span></label>${toggle('modalidad', MODS, x && x.modalidad)}</div>
+          <div class="field"><label>Lugar</label><input name="lugar" value="${val(x, 'lugar')}" placeholder="Ej. Casa de la Cultura, Tunja"></div></div>
+        <div class="row3"><div class="field"><label>Inicio de inscripciones</label><input type="date" name="fecha_inicio_inscripcion" value="${x ? toInputDate(x.fecha_inicio_inscripcion) : ''}"></div>
+          <div class="field"><label>Inicio del curso <span class="req">*</span></label><input type="date" name="fecha_inicio_curso" data-req value="${x ? toInputDate(x.fecha_inicio_curso) : ''}"></div>
+          <div class="field"><label>Fin del curso <span class="req">*</span></label><input type="date" name="fecha_fin_curso" data-req value="${x ? toInputDate(x.fecha_fin_curso) : ''}"></div></div>
+        <div class="row3"><div class="field"><label>Duración (horas)</label><input type="number" min="1" max="2000" name="horas_totales" value="${val(x, 'horas_totales')}" placeholder="Ej. 40"></div>
+          <div class="field"><label>Cupos <span class="req">*</span></label><input type="number" min="1" max="1000" name="cupo_maximo" data-req value="${val(x, 'cupo_maximo')}" placeholder="Ej. 20"></div>
+          <div class="field"><label>Instructor</label><input name="instructor" value="${val(x, 'instructor')}"></div></div>
+        <label class="check mb2"><input type="checkbox" name="solo_mayores_de_edad" ${x && x.solo_mayores_de_edad ? 'checked' : ''}> Solo para mayores de 18 años</label>
+        ${x ? `<p class="small muted">Estado actual: ${chipCurso(x)} · Los cursos se publican con <b>Publicar</b>; un curso abierto pasa solo a "en curso" y "finalizado" según sus fechas.</p>` : ''}
+        <div class="field"><label>Descripción del curso <span class="req">*</span></label><textarea name="descripcion" data-req data-count maxlength="5000" placeholder="Cuéntanos qué aprenderá el participante...">${val(x, 'descripcion')}</textarea><div class="counter"></div></div>
+        <div class="field"><label>Requisitos <span class="req">*</span></label><textarea name="requisitos" data-req placeholder="Indica las condiciones necesarias para inscribirse (una por línea)">${val(x, 'requisitos')}</textarea></div>`,
+        extra: x ? `<button type="button" class="btn soft block" id="insc">${ic('groups')} Ver inscritos, lista de espera y progreso (${x.inscritos})</button>` : '' });
+      if (x) {
+        m.$('#insc').onclick = () => inscritos(x);
+        const SIG = { ABIERTO: [['CANCELADO', 'Cancelar curso']], EN_CURSO: [['FINALIZADO', 'Marcar como finalizado'], ['CANCELADO', 'Cancelar curso']], BORRADOR: [['CANCELADO', 'Cancelar curso']] }[x.estado] || [];
+        SIG.forEach(([est, t]) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn outline block mt1'; b.textContent = t; b.onclick = () => cambiarEstado(`/api/admin/cursos/${x.curso_id}/estado`, est, t + '?', m); m.$('#insc').after(b); });
+        if (!['BORRADOR', 'ABIERTO'].includes(x.estado)) m.$('.modal-f').insertAdjacentHTML('afterbegin', `<span class="small muted" style="flex:1">Este curso ya no se puede editar.</span>`);
+      }
+    },
+    convocatorias: x => {
+      const m = abrirForm({ tipo: 'convocatorias', titulo: 'convocatoria', icon: 'groups', x, pk: 'convocatoria_id', campos: `
+        <p class="small muted">Conecta el talento actoral de Boyacá con nuevas oportunidades profesionales.</p>
+        <div class="field"><label>Nombre de la convocatoria <span class="req">*</span></label><input name="titulo" data-req value="${val(x, 'titulo')}" placeholder="Ej. Casting para cortometraje regional"></div>
+        <div class="row2"><div class="field"><label>Tipo de oportunidad <span class="req">*</span></label><select name="tipo_oportunidad" data-req>${opts(TIPOS, x && x.tipo_oportunidad)}</select></div>
+          <div class="field"><label>Entidad o responsable <span class="req">*</span></label><input name="entidad" data-req value="${val(x, 'entidad')}" placeholder="Ej. Productora, institución..."></div></div>
+        <div class="field"><label>Perfiles requeridos <span class="req">*</span></label><textarea name="perfiles_requeridos" data-req style="min-height:80px" placeholder="Ej. Actores y actrices entre 18 y 35 años">${val(x, 'perfiles_requeridos')}</textarea></div>
+        <div class="row2"><div class="field"><label>Ubicación <span class="req">*</span></label><div class="inp-ic">${ic('place')}<input name="ubicacion" data-req value="${val(x, 'ubicacion')}" placeholder="Ej. Tunja, Boyacá"></div></div>
+          <div class="field"><label>Modalidad <span class="req">*</span></label>${toggle('modalidad', MODS, x && x.modalidad)}</div></div>
+        <div class="row3"><div class="field"><label>Apertura (opcional)</label><input type="date" name="fecha_apertura" value="${x ? toInputDate(x.fecha_apertura) : ''}"></div>
+          <div class="field"><label>Fecha límite <span class="req">*</span></label><input type="date" name="fecha_cierre" data-req value="${x ? toInputDate(x.fecha_cierre) : ''}"></div>
+          <div class="field"><label>Vacantes <span class="req">*</span></label><input type="number" min="1" max="1000" name="cupo_maximo" data-req value="${val(x, 'cupo_maximo')}" placeholder="Ej. 25"></div></div>
+        <h3 class="mt2">Perfil buscado <span class="muted small">(el sistema calcula la compatibilidad y avisa a quien no cumple)</span></h3>
+        <div class="row2"><div class="field"><label>Edad aparente (desde / hasta)</label><div class="flex"><input type="number" min="0" max="100" name="edad_aparente_min" value="${val(x, 'edad_aparente_min')}" placeholder="Desde"><input type="number" min="0" max="100" name="edad_aparente_max" value="${val(x, 'edad_aparente_max')}" placeholder="Hasta"></div></div>
+          <div class="field"><label>Estatura cm (desde / hasta)</label><div class="flex"><input type="number" min="50" max="250" name="estatura_min_cm" value="${val(x, 'estatura_min_cm')}" placeholder="Desde"><input type="number" min="50" max="250" name="estatura_max_cm" value="${val(x, 'estatura_max_cm')}" placeholder="Hasta"></div></div></div>
+        <div class="field"><label>Géneros</label>${multi('generos', 'generos', x && x.generos)}</div>
+        <div class="field"><label>Provincias</label>${multi('provincias', 'provincias', x && x.provincias)}</div>
+        <label class="check mb2"><input type="checkbox" name="solo_mayores_de_edad" ${x && x.solo_mayores_de_edad ? 'checked' : ''}> Solo mayores de 18 años</label>
+        <div class="field"><label>Descripción de la oportunidad <span class="req">*</span></label><textarea name="descripcion" data-req placeholder="Cuéntanos sobre el proyecto, el papel y las condiciones (mínimo 10 caracteres)...">${val(x, 'descripcion')}</textarea></div>
+        <div class="field"><label>Requisitos de postulación <span class="req">*</span></label><textarea name="requisitos" data-req placeholder="Ej. Experiencia, habilidades, material audiovisual, etc.">${val(x, 'requisitos')}</textarea></div>`,
+        extra: x ? `<button type="button" class="btn soft block" id="post">${ic('assignment_ind')} Ver postulantes y gestionar etapas (${x.postulantes})</button>` : '' });
+      if (x) {
+        m.$('#post').onclick = () => postulantes(x);
+        const SIG = { PROXIMA: [['ACTIVA', 'Activar ahora'], ['CERRADA', 'Cerrar']], ACTIVA: [['EN_PAUSA', 'Pausar'], ['CERRADA', 'Cerrar convocatoria']], EN_PAUSA: [['ACTIVA', 'Activar'], ['CERRADA', 'Cerrar']] }[x.estado] || [];
+        SIG.forEach(([est, t]) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn outline block mt1'; b.textContent = t; b.onclick = () => cambiarEstado(`/api/admin/convocatorias/${x.convocatoria_id}/estado`, est, t + '?', m); m.$('#post').after(b); });
+      }
+    },
+    noticias: x => {
+      const m = abrirForm({ tipo: 'noticias', titulo: 'noticia', icon: 'newspaper', x, pk: 'noticia_id', campos: `
+        <p class="small muted">Comparte novedades, eventos y noticias de interés para la comunidad actoral.</p>
+        <div class="field"><label>Título de la noticia <span class="req">*</span></label><input name="titulo" data-req value="${val(x, 'titulo')}" placeholder="Ej. Boyacá abre nuevas oportunidades para el talento actoral"></div>
+        <div class="row2"><div class="field"><label>Categoría <span class="req">*</span></label><select name="categoria" data-req>${opts(NCATS, x && x.categoria)}</select></div>
+          <div class="field"><label>Fecha de publicación <span class="req">*</span></label><input type="datetime-local" name="publicado_en" data-req value="${x ? toInputDT(x.publicado_en) : toInputDT(new Date())}"></div></div>
+        <div class="field"><label>Resumen <span class="req">*</span></label><textarea name="resumen_para_carta" data-req data-count maxlength="200" style="min-height:80px" placeholder="Escribe un breve resumen de la noticia...">${val(x, 'resumen_para_carta')}</textarea><div class="counter"></div></div>
+        <div class="field"><label>Contenido de la noticia <span class="req">*</span></label><div class="editor"><div class="tb">
+          <button type="button" data-cmd="bold"><b>B</b></button><button type="button" data-cmd="italic"><i>I</i></button><button type="button" data-cmd="underline"><u>U</u></button>
+          <button type="button" data-cmd="insertUnorderedList">${ic('format_list_bulleted')}</button><button type="button" data-cmd="insertOrderedList">${ic('format_list_numbered')}</button><button type="button" data-cmd="link">${ic('link')}</button></div>
+          <div class="area" contenteditable="true" data-req>${x ? x.resumen_para_galeria || '' : ''}</div></div></div>
+        <div class="field"><label>Fuente o enlace relacionado <span class="muted">(opcional)</span></label><div class="inp-ic">${ic('link')}<input name="enlace" value="${val(x, 'enlace')}" placeholder="Ej. https://www.fuente.com"></div></div>` });
+      m.$$('[data-cmd]').forEach(b => b.onmousedown = e => { e.preventDefault(); if (b.dataset.cmd === 'link') { const u = prompt('Enlace (https://...)'); if (u) document.execCommand('createLink', false, u); } else document.execCommand(b.dataset.cmd); });
+    }
+  };
+
+  const EST_INS = { INSCRITO: 'Inscrito', LISTA_ESPERA: 'En lista de espera', COMPLETADA: 'Completada', NO_COMPLETADA: 'No completada', CANCELADA: 'Cancelada' };
+  async function inscritos(c) {
+    const m = modal({ size: 'lg', title: 'Inscritos · ' + esc(c.titulo), icon: 'groups', body: '<div class="spinner"></div>' });
+    const L = await api(`/api/admin/cursos/${c.curso_id}/inscritos`);
+    const SIG = { INSCRITO: ['COMPLETADA', 'NO_COMPLETADA', 'CANCELADA'], LISTA_ESPERA: ['CANCELADA'], COMPLETADA: ['NO_COMPLETADA'], NO_COMPLETADA: ['COMPLETADA'], CANCELADA: [] };
+    m.$('.modal-b').innerHTML = L.length ? `<p class="small muted">Registra el avance de cada participante y su resultado final (solo cuando el curso esté en curso o finalizado). Al cancelar a alguien, la lista de espera avanza sola.</p>` + L.map(a => `<div class="insc-row">
+        <div class="av sm" style="${bg(a.foto)}">${a.foto ? '' : ic('person')}</div><div><b style="color:var(--ink)">${esc(a.nombre)}</b><div class="small muted">${EST_INS[a.estado]} · ${fecha(a.inscrito_en)}</div></div>
+        <input type="range" min="0" max="100" step="5" value="${a.progreso || 0}" data-a="${a.inscripcion_id}" ${a.estado === 'CANCELADA' || a.estado === 'LISTA_ESPERA' ? 'disabled' : ''}><b class="pv">${a.progreso || 0}%</b>
+        ${SIG[a.estado].length ? `<select class="inp" style="width:auto" data-e="${a.inscripcion_id}"><option value="">Resultado…</option>${SIG[a.estado].map(k => `<option value="${k}">${EST_INS[k]}</option>`).join('')}</select>` : ''}</div>`).join('')
+      : `<div class="empty">${ic('group_off')}Aún no hay inscritos en este curso.</div>`;
+    m.$$('input[type=range]').forEach(r => {
+      r.oninput = () => r.nextElementSibling.textContent = r.value + '%';
+      r.onchange = async () => { try { await api(`/api/admin/inscripciones/${r.dataset.a}`, { method: 'PUT', body: { progreso: +r.value } }); toast('Progreso guardado'); } catch (e) { toast(e.message, 'err'); } };
+    });
+    m.$$('select[data-e]').forEach(sl => sl.onchange = async () => {
+      if (!sl.value) return;
+      let notas;
+      if (sl.value === 'CANCELADA') { const r = await confirmBox({ title: '¿Cancelar esta inscripción?', text: 'El motivo queda en el historial y se libera el cupo.', ok: 'Cancelar inscripción', danger: true, icon: 'event_busy', input: { label: 'Motivo (mínimo 5 caracteres)' } }); if (!r) { sl.value = ''; return; } notas = r.value; }
+      try { await api(`/api/admin/inscripciones/${sl.dataset.e}`, { method: 'PUT', body: { estado: sl.value, notas } }); toast('Inscripción actualizada'); m.close(); inscritos(c); cargar(); } catch (e) { toast(e.message, 'err'); sl.value = ''; }
+    });
+  }
+  async function postulantes(c) {
+    const m = modal({ size: 'lg', title: 'Postulantes · ' + esc(c.titulo), icon: 'assignment_ind', body: '<div class="spinner"></div>' });
+    const L = await api(`/api/admin/convocatorias/${c.convocatoria_id}/postulantes`);
+    const ET = [['POSTULADO', 'Postulado'], ['EN_REVISION', 'En revisión'], ['PRESELECCIONADO', 'Preseleccionado/a'], ['SELECCIONADO', 'Seleccionado/a'], ['RECHAZADO', 'Rechazado/a']];
+    m.$('.modal-b').innerHTML = L.length ? `<p class="small muted">Cambia la etapa de cada postulante. El actor verá el avance en "Mis aplicaciones".</p>` + L.map(a => `<div class="list-card" style="padding:12px 14px">
+        <div class="av sm" style="${bg(a.foto)}">${a.foto ? '' : ic('person')}</div><div class="info"><b>${esc(a.nombre)}</b><div class="meta"><span>${esc(rolLabel(a))}</span><span>${ic('place')} ${esc(a.ciudad || '')}</span><span>${a.edad} años</span><span class="chip ${a.compatibilidad >= 80 ? 'lime' : 'outline'}" style="font-size:.66rem">${a.compatibilidad ?? 0}% compatible</span></div></div>
+        <div class="acts"><select class="inp" style="width:auto" data-p="${a.postulacion_id}">${ET.map(([k, t]) => `<option value="${k}" ${k === a.estado ? 'selected' : ''}>${t}</option>`).join('')}</select>
+          <a class="icon-btn" target="_blank" href="perfil.html?id=${a.actor_id}" title="Ver perfil">${ic('open_in_new')}</a></div></div>`).join('')
+      : `<div class="empty">${ic('inbox')}Aún no hay postulantes.</div>`;
+    m.$$('[data-p]').forEach(s => { s.dataset.prev = s.value; s.onchange = async () => {
+      let notas;
+      if (s.value === 'RECHAZADO') { const r = await confirmBox({ title: '¿Rechazar esta postulación?', text: 'El motivo queda en el historial.', ok: 'Rechazar', danger: true, icon: 'close', input: { label: 'Motivo (mínimo 10 caracteres)' } }); if (!r) { s.value = s.dataset.prev; return; } notas = r.value; }
+      try { await api('/api/admin/postulaciones/' + s.dataset.p, { method: 'PUT', body: { estado: s.value, estado_anterior: s.dataset.prev, notas } }); s.dataset.prev = s.value; toast('Etapa actualizada'); }
+      catch (e) { toast(e.message, 'err'); s.value = s.dataset.prev; } }; });
+  }
+  cargar().catch(e => $('#secs').innerHTML = `<div class="err-msg">${esc(e.message)}</div>`);
+}
+</script>
+</body>
+</html>

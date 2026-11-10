@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Postulaciones · Centro Actoral de Boyacá</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<style>
+  .post-grid { display: grid; grid-template-columns: 1fr 1.2fr; gap: 34px; align-items: start; }
+  @media (max-width: 1000px) { .post-grid { grid-template-columns: 1fr; } }
+  .status-card { text-align: center; padding: 34px 30px 30px; }
+  .status-card h2 { color: var(--lime); font-size: 1.9rem; margin: 6px 0 12px; }
+  .conv { display: flex; gap: 16px; align-items: flex-start; }
+  .conv + .conv { margin-top: 16px; }
+  .conv .tile { background: var(--turq) center/cover; width: 70px; height: 70px; border-radius: 16px; }
+  .tl { position: relative; padding-left: 34px; }
+  .tl .s { position: relative; padding-bottom: 20px; }
+  .tl .s::before { content: ''; position: absolute; left: -24px; top: 26px; bottom: -2px; width: 2px; background: var(--line); }
+  .tl .s:last-child::before { display: none; }
+  .tl .s .d { position: absolute; left: -34px; top: 0; width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 2px solid var(--line); display: grid; place-items: center; }
+  .tl .s.ok .d { background: var(--turq); border-color: var(--turq); color: #fff; }
+  .tl .s.cur .d { background: var(--lime); border-color: var(--petrol); }
+  .tl .s.bad .d { background: var(--danger); border-color: var(--danger); color: #fff; }
+  .tl .s .d .material-icons-round { font-size: 14px; }
+</style>
+</head>
+<body>
+<main id="page" class="content">
+  <div id="svgwave"></div>
+  <div class="post-grid">
+    <div id="status"><div class="spinner"></div></div>
+    <div>
+      <div class="sec-head"><div><span class="eyebrow">Oportunidades</span><h2>Convocatorias abiertas</h2></div></div>
+      <div id="convs"><div class="spinner"></div></div>
+    </div>
+  </div>
+  <section class="section">
+    <div class="sec-head"><h3 class="mb0" style="color:var(--petrol-3)">Perfiles sugeridos</h3><a class="link" href="actores.html">Explorar <span class="material-icons-round">arrow_forward</span></a></div>
+    <div class="masonry" id="sug"></div>
+  </section>
+</main>
+<script src="js/app.js"></script>
+<script>
+shell({ active: 'postulaciones' });
+$('#svgwave').outerHTML = SVG.wave;
+let PERFIL = null, CONVS = [];
+
+async function estado() {
+  const box = $('#status');
+  if (S.rol !== 'actor') {
+    box.innerHTML = `<div class="card-petrol status-card"><span class="eyebrow">Casting · Actor</span><h2>Postulación</h2>
+      <p>Aún no te has postulado al Registro Departamental de talento actoral. Prepara tu material y completa el formulario en 5 pasos.</p>
+      <a class="btn lime block mt2" href="preparar.html">${ic('star')} Postularme</a>
+      ${S.rol ? '' : `<a class="btn outline block mt1" style="border-color:#fff;color:#fff;background:transparent" href="login.html?next=postulaciones.html">Ya tengo cuenta · Iniciar sesión</a>`}</div>`;
+    return;
+  }
+  PERFIL = await api('/api/mi-perfil');
+  const e = PERFIL.estado;
+  const info = {
+    PENDIENTE: ['En proceso', 'lime', 'Tu postulación como actor está en proceso de revisión. Nuestro equipo evaluará tu perfil y material, y te daremos una respuesta en un plazo máximo de 15 días.', 'En evaluación', 55],
+    APROBADO: ['Aprobada', 'lime', '¡Felicitaciones! Tu perfil fue aprobado y ya aparece en la vitrina pública del Centro Actoral. Ahora puedes postularte a convocatorias.', 'Perfil publicado', 100],
+    RECHAZADO: ['Requiere ajustes', 'red', 'Tu postulación no fue aprobada en esta ocasión. Revisa el motivo, actualiza tu perfil y comunícate con el Centro Actoral.', 'Revisión finalizada', 100]
+  }[e];
+  box.innerHTML = `<div class="card-petrol status-card"><span class="eyebrow">Casting · Actor</span><h2>Postulación</h2>
+    <span class="chip ${info[1]}"><span class="dot"></span> ${info[0]}</span>
+    <p class="mt2">${info[2]}</p>
+    ${PERFIL.pendiente && e === 'APROBADO' ? `<p class="small" style="color:var(--lime)">${ic('hourglass_top')} Tienes cambios de perfil en revisión.</p>` : ''}
+    <div style="text-align:left" class="mt2"><small>${info[3]}</small><div class="progress mt1"><i style="width:${info[4]}%"></i></div></div>
+    <button class="btn lime block mt3" id="ver-estado">${ic('add_circle')} Ver estado de mi postulación</button>
+    <p class="small mt2 mb0" style="opacity:.85">N.º de solicitud: <b style="color:var(--lime)">${esc(PERFIL.numero)}</b></p></div>`;
+  $('#ver-estado').onclick = verEstado;
+}
+
+function verEstado() {
+  const p = PERFIL, e = p.estado, enviado = new Date(p.creado_en), limite = new Date(+enviado + 15 * 864e5);
+  modal({
+    title: 'Estado de mi postulación', icon: 'fact_check',
+    body: `<p class="muted">Solicitud <b>${esc(p.numero)}</b> · enviada el ${fecha(enviado, true)}</p>
+      <div class="tl mt2">
+        <div class="s ok"><span class="d">${ic('check')}</span><b>Solicitud enviada</b><div class="small muted">${fechaHora(enviado)}</div></div>
+        <div class="s ${e === 'PENDIENTE' ? 'cur' : 'ok'}"><span class="d">${e === 'PENDIENTE' ? '' : ic('check')}</span><b>Revisión del perfil y material</b>
+          <div class="small muted">${e === 'PENDIENTE' ? 'El equipo del Centro Actoral está evaluando tu información.' : 'Revisión completada.'}</div></div>
+        <div class="s ${e === 'APROBADO' ? 'ok' : e === 'RECHAZADO' ? 'bad' : ''}"><span class="d">${e === 'APROBADO' ? ic('check') : e === 'RECHAZADO' ? ic('close') : ''}</span>
+          <b>Resultado</b><div class="small muted">${e === 'APROBADO' ? 'Perfil aprobado y publicado en la vitrina.' : e === 'RECHAZADO' ? 'No aprobado.' : `Respuesta a más tardar el ${fecha(limite, true)}.`}</div>
+          ${e === 'RECHAZADO' && p.motivo_rechazo ? `<div class="err-msg mt1">Motivo: ${esc(p.motivo_rechazo)}</div>` : ''}</div>
+      </div>
+      <div class="flex wrap mt2"><a class="btn soft" href="editar.html">${ic('edit')} Actualizar mi perfil</a>
+        <a class="btn outline" href="perfil.html?id=${p.actor_id}">${ic('visibility')} Ver cómo se ve mi perfil</a></div>`
+  });
+}
+
+const ICONOS = t => /cine|pel/i.test(t) ? 'movie' : /teatro/i.test(t) ? 'theater_comedy' : /comercial|publi/i.test(t) ? 'storefront' : /serie|tele/i.test(t) ? 'live_tv' : /beca|curso|taller|forma/i.test(t) ? 'school' : 'photo_camera';
+async function convocatorias() {
+  CONVS = await api('/api/convocatorias');
+  const box = $('#convs');
+  await catalogos();
+  const abiertas = CONVS;
+  if (!abiertas.length) { box.innerHTML = `<div class="empty">${ic('campaign')}No hay convocatorias abiertas en este momento.</div>`; return; }
+  box.innerHTML = abiertas.map((c, i) => `<div class="card conv">
+      <div class="tile" style="${bg(c.imagen_url)}">${c.imagen_url ? '' : ic(ICONOS((c.tipo_oportunidad || '') + c.titulo))}</div>
+      <div style="flex:1;min-width:0"><div class="flex between"><b style="color:var(--ink)">${esc(c.titulo)}</b>${c.postulado ? '<span class="chip lime">Ya aplicaste</span>' : c.estado === 'PROXIMA' ? '<span class="chip outline">Próximamente</span>' : ''}</div>
+        <div class="small muted">${esc([c.tipo_oportunidad, c.entidad].filter(Boolean).join(' · '))}</div>
+        <div class="small mt1">${esc(c.perfiles_requeridos || '')}</div>
+        <div class="flex wrap small mt1" style="color:var(--turq-2);gap:14px"><span>${ic('place')} ${esc(c.ubicacion || 'Boyacá')}</span><span>${ic('event')} Cierre: ${fecha(c.fecha_cierre)}</span><span>${ic('videocam')} ${esc(etq('modalidades', c.modalidad))}</span></div></div>
+      <button class="icon-btn" data-i="${CONVS.indexOf(c)}" aria-label="Ver convocatoria">${ic('chevron_right')}</button></div>`).join('');
+  $$('[data-i]', box).forEach(b => b.onclick = () => detalle(CONVS[b.dataset.i]));
+}
+
+function detalle(c) {
+  const aprobado = PERFIL && PERFIL.estado === 'APROBADO';
+  let btn;
+  if (c.postulado) btn = `<button class="btn lime" disabled>${ic('check')} Ya te postulaste</button>`;
+  else if (S.rol !== 'actor') btn = S.rol ? '' : `<a class="btn lime" href="login.html?next=postulaciones.html">Inicia sesión para aplicar</a>`;
+  else if (c.estado === 'PROXIMA') btn = `<button class="btn" disabled>${ic('schedule')} Abre el ${fecha(c.fecha_apertura, true)}</button>`;
+  else if (!aprobado) btn = `<button class="btn" disabled>Tu perfil debe estar aprobado para aplicar</button>`;
+  else btn = `<button class="btn lime" id="aplicar">${ic('send')} Aplicar a esta convocatoria</button>`;
+  const m = modal({
+    size: 'lg', title: esc(c.titulo), icon: 'campaign',
+    body: `${c.imagen_url ? `<img src="${esc(c.imagen_url)}" style="width:100%;max-height:300px;object-fit:cover;border-radius:16px;margin-bottom:16px">` : ''}
+      <div class="flex wrap mb2">${c.tipo_oportunidad ? `<span class="chip">${esc(c.tipo_oportunidad)}</span>` : ''}<span class="chip turq">${esc(etq('modalidades', c.modalidad))}</span>${c.cupo_maximo ? `<span class="chip outline">${c.cupo_maximo} cupos</span>` : ''}</div>
+      <p>${esc(c.descripcion)}</p>
+      ${c.perfiles_requeridos ? `<h3>Perfiles requeridos</h3><p>${esc(c.perfiles_requeridos)}</p>` : ''}
+      ${(() => { const r = []; if (c.solo_mayores_de_edad) r.push('Solo mayores de edad'); if (c.edad_aparente_min != null) r.push(`Edad aparente ${c.edad_aparente_min}–${c.edad_aparente_max ?? '…'} años`);
+        if (c.estatura_min_cm || c.estatura_max_cm) r.push(`Estatura ${c.estatura_min_cm || '…'}–${c.estatura_max_cm || '…'} cm`); if ((c.generos || []).length) r.push('Género: ' + c.generos.map(g => etq('generos', g)).join(', '));
+        if ((c.provincias || []).length) r.push('Provincias: ' + c.provincias.map(g => etq('provincias', g)).join(', ')); if ((c.municipios || []).length) r.push('Municipios: ' + c.municipios.join(', '));
+        return r.length ? `<h3>Perfil buscado</h3><p>${r.map(esc).join(' · ')}</p>` : ''; })()}
+      ${c.requisitos ? `<h3>Requisitos de postulación</h3><p style="white-space:pre-line">${esc(c.requisitos)}</p>` : ''}
+      <div class="grid g3 mt2" style="gap:12px">
+        <div class="card" style="padding:14px"><small class="muted">Entidad</small><br><b>${esc(c.entidad || 'Centro Actoral de Boyacá')}</b></div>
+        <div class="card" style="padding:14px"><small class="muted">Ubicación</small><br><b>${esc(c.ubicacion || 'Boyacá')}</b></div>
+        <div class="card" style="padding:14px"><small class="muted">Fecha límite</small><br><b>${fecha(c.fecha_cierre, true)}</b></div></div>`,
+    foot: btn
+  });
+  const ap = m.$('#aplicar');
+  if (ap) ap.onclick = async () => {
+    ap.disabled = true;
+    try { await api(`/api/convocatorias/${c.convocatoria_id}/aplicar`, { method: 'POST' }); m.close(); toast('¡Postulación enviada! Síguela en Mis aplicaciones.'); convocatorias(); }
+    catch (e) {
+      ap.disabled = false;
+      const lista = e.data && e.data.incumplimientos;
+      if (lista && lista.length) { const b = m.$('.modal-b'); b.querySelector('.inc')?.remove(); b.insertAdjacentHTML('afterbegin', `<div class="err-msg inc"><b>${esc(e.message)}</b><ul style="margin:8px 0 0 18px">${lista.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`); b.scrollTop = 0; }
+      else toast(e.message, 'err');
+    }
+  };
+}
+
+(async () => {
+  try { await estado(); } catch (e) { $('#status').innerHTML = `<div class="err-msg">${esc(e.message)}</div>`; }
+  try { await convocatorias(); } catch (e) { $('#convs').innerHTML = `<div class="err-msg">${esc(e.message)}</div>`; }
+  const sug = await api('/api/actores?orden=azar&limit=8').catch(() => []);
+  $('#sug').innerHTML = sug.length ? sug.map((a, i) => actorCard(a, { dark: i % 3 === 1 })).join('') : `<div class="empty" style="column-span:all">${ic('groups')}Pronto verás perfiles aprobados aquí.</div>`;
+})();
+</script>
+</body>
+</html>

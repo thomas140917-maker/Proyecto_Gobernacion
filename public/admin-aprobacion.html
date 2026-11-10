@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aprobación de perfiles · Centro Actoral de Boyacá</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<main id="page" class="content">
+  <div class="page-head"><h1>Aprobación de perfiles</h1><p>Revisa y aprueba las solicitudes de nuevos perfiles.</p></div>
+  <div class="tabs mb2" id="tabs"></div>
+  <div id="list"><div class="spinner"></div></div>
+</main>
+<script src="js/app.js"></script>
+<script src="js/admin.js"></script>
+<script>
+if (shell({ active: 'aprobacion', admin: true, require: 'admin' })) {
+  let estado = qs('estado') || 'PENDIENTE';
+  const T = [['PENDIENTE', 'Pendientes'], ['APROBADO', 'Aprobados'], ['RECHAZADO', 'Rechazados']];
+  async function cargar() {
+    await catalogos();
+    const r = await api('/api/admin/solicitudes?estado=' + estado);
+    $('#tabs').innerHTML = T.map(([k, t]) => `<button class="tab ${k === estado ? 'on' : ''}" data-e="${k}"><span class="n">${r.conteo[k] || 0}</span> ${t}</button>`).join('');
+    $$('#tabs .tab').forEach(b => b.onclick = () => { estado = b.dataset.e; history.replaceState(null, '', '?estado=' + estado); cargar(); });
+    $('#list').innerHTML = r.perfiles.length ? `<div class="grid g2" style="gap:14px">${r.perfiles.map(a => `<div class="list-card" style="margin:0">
+        <div class="av" style="${bg(a.foto)}">${a.foto ? '' : ic('face')}</div>
+        <div class="info"><b>${esc(a.nombre)}</b><div class="small" style="color:var(--petrol)">${esc(rolLabel(a))}</div>
+          <div class="meta"><span>${ic('place')} ${esc(a.ciudad || '')}</span><span>${ic('person_outline')} ${a.edad} años</span><span>${ic('event')} ${hace(a.enviado_en || a.creado_en)}</span>${a.es_menor ? `<span class="chip ${a.acudiente_verificado ? 'lime' : 'red'}" style="font-size:.66rem">${a.acudiente_verificado ? 'Acudiente verificado' : 'Acudiente sin verificar'}</span>` : ''}</div></div>
+        <div class="acts">${estado === 'PENDIENTE' ? `<div style="display:flex;flex-direction:column;gap:8px"><button class="icon-btn ok" data-ok="${a.actor_id}" title="Aprobar">${ic('check')}</button><button class="icon-btn" data-no="${a.actor_id}" title="Rechazar">${ic('close')}</button></div>`
+          : estado === 'APROBADO' ? `<span class="chip lime">Aprobado</span>${a.restringido ? '<span class="chip red">Restringido</span>' : ''}`
+          : `<div class="center"><span class="chip outline">Rechazado</span></div>`}
+          <button class="icon-btn" style="border:0" data-v="${a.actor_id}" title="Ver perfil completo">${ic('chevron_right')}</button></div></div>`).join('')}</div>`
+      : `<div class="empty">${ic('inbox')}No hay perfiles ${T.find(t => t[0] === estado)[1].toLowerCase()}.</div>`;
+    $$('[data-v]').forEach(b => b.onclick = () => verPerfilAdmin(b.dataset.v, cargar));
+    $$('[data-ok]').forEach(b => b.onclick = async () => {
+      if (!await confirmBox({ title: '¿Aprobar este perfil?', text: 'El perfil quedará aprobado y el actor podrá postularse a convocatorias. Aparecerá en la vitrina pública solo si autorizó su publicación.', ok: 'Aprobar', icon: 'check' })) return;
+      try { await api('/api/admin/solicitudes/' + b.dataset.ok, { method: 'PUT', body: { estado: 'APROBADO' } }); toast('Perfil aprobado'); cargar(); } catch (e) { toast(e.message, 'err'); }
+    });
+    $$('[data-no]').forEach(b => b.onclick = async () => {
+      const r = await rechazar(); if (!r) return;
+      try { await api('/api/admin/solicitudes/' + b.dataset.no, { method: 'PUT', body: { estado: 'RECHAZADO', motivo: r.value } }); toast('Perfil rechazado'); cargar(); } catch (e) { toast(e.message, 'err'); }
+    });
+  }
+  cargar().catch(e => $('#list').innerHTML = `<div class="err-msg">${esc(e.message)}</div>`);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+
+	# Un poco más que el máximo de subida de la API (10 MB)
+	request_body {
+		max_size 12MB
+	}
+
+	reverse_proxy api:3000 {
+		health_uri /api/v1/health
+	}
+}

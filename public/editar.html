@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Editar perfil · Centro Actoral de Boyacá</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<style>
+  .ed { display: grid; grid-template-columns: 240px 1fr; gap: 30px; align-items: start; }
+  @media (max-width: 1000px) { .ed { grid-template-columns: 1fr; } .ed nav { display: none; } }
+  .ed nav { position: sticky; top: calc(var(--top-h) + 20px); display: flex; flex-direction: column; gap: 4px; }
+  .ed nav a { padding: 10px 14px; border-radius: 12px; font-weight: 600; font-size: .9rem; color: var(--petrol); }
+  .ed nav a:hover { background: var(--soft); }
+  .ed .card { margin-bottom: 22px; scroll-margin-top: 90px; }
+  .ed .card h3 { display: flex; align-items: center; gap: 10px; }
+  .gal-ed { display: flex; flex-wrap: wrap; gap: 12px; }
+  .gal-ed .it { width: 110px; height: 140px; border-radius: 12px; background: #ddd center/cover; position: relative; }
+  .gal-ed .it button { position: absolute; top: -8px; right: -8px; width: 28px; height: 28px; border-radius: 50%; border: 0; background: var(--danger); color: #fff; cursor: pointer; display: grid; place-items: center; }
+  .gal-ed .it.del { opacity: .3; }
+  .savebar { position: sticky; bottom: 16px; z-index: 5; background: var(--petrol); border-radius: 20px; padding: 14px 18px; display: flex; gap: 12px; align-items: center; color: #fff; box-shadow: 0 10px 30px rgba(0,0,0,.2); }
+</style>
+</head>
+<body>
+<main id="page" class="content"><div class="spinner"></div></main>
+<script src="js/app.js"></script>
+<script>
+if (shell({ active: 'perfil', require: 'actor' })) {
+  const AREAS = ['Teatro', 'Cine', 'Televisión', 'Cortometraje', 'Publicidad', 'Doblaje'];
+  const ESP = ['Drama', 'Comedia', 'Acción', 'Musical', 'Infantil', 'Histórico', 'Improvisación'];
+  const st = { foto: null, fotos: [], eliminar: new Set() };
+  let P;
+  Promise.all([api('/api/mi-perfil'), catalogos()]).then(([p]) => { P = p; render(); }).catch(e => $('#page').innerHTML = `<div class="err-msg">${esc(e.message)}</div>`);
+
+  const v = x => esc(x ?? '');
+  const selC = (name, lista, val, vacio = '—') => `<select name="${name}"><option value="">${vacio}</option>${((window.CATALOGOS || {})[lista] || []).map(o => `<option value="${esc(o.codigo)}" ${o.codigo === val ? 'selected' : ''}>${esc(o.etiqueta)}</option>`).join('')}</select>`;
+  const sel = (name, opts, val) => `<select name="${name}"><option value="">—</option>${opts.map(o => `<option ${o === val ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
+  function repeater(id, campos, filas) {
+    const box = $('#' + id);
+    const add = (r = {}) => {
+      box.insertAdjacentHTML('beforeend', `<div class="repeat-row"><button type="button" class="icon-btn rm" title="Quitar">${ic('delete_outline')}</button>
+        <div class="${campos.length > 2 ? 'row3' : 'row2'}" style="padding-right:46px">${campos.map(([k, l, t]) => `<div class="field mb0"><label>${l}</label>${Array.isArray(t)
+          ? `<select data-k="${k}">${t.map(o => `<option ${o == r[k] ? 'selected' : ''}>${o}</option>`).join('')}</select>`
+          : `<input data-k="${k}" type="${t || 'text'}" value="${v(r[k])}">`}</div>`).join('')}</div></div>`);
+      const row = box.lastElementChild; row.querySelector('.rm').onclick = () => row.remove();
+    };
+    (filas || []).forEach(add);
+    box.nextElementSibling.onclick = () => add();
+    return () => [...box.children].map(r => Object.fromEntries([...r.querySelectorAll('[data-k]')].map(i => [i.dataset.k, i.value.trim()])));
+  }
+
+  function render() {
+    const p = P;
+    const ext = p.videos.filter(x => x.url_embed), reelActual = (ext[0] || {}).url || '', portActual = ((p.enlaces || [])[0] || {}).url || '';
+    const otrosVideos = p.videos.filter(x => x !== ext[0]);
+    const areas = new Set(p.habilidades.filter(h => h.tipo === 'AREA').map(h => h.nombre)), esp = new Set(p.habilidades.filter(h => h.tipo === 'ESPECIALIDAD').map(h => h.nombre));
+    const otras = p.habilidades.filter(h => h.tipo !== 'AREA' && h.tipo !== 'ESPECIALIDAD');
+    const extraA = [...areas].filter(a => !AREAS.includes(a)), extraE = [...esp].filter(a => !ESP.includes(a));
+    const secs = [['s-foto', 'Foto de perfil', 'photo_camera'], ['s-basico', 'Información básica', 'person'], ['s-bio', 'Biografía', 'notes'], ['s-hab', 'Áreas y habilidades', 'theater_comedy'],
+      ['s-car', 'Características', 'accessibility_new'], ['s-idi', 'Idiomas y formación', 'translate'], ['s-exp', 'Experiencia', 'work_outline'], ['s-mat', 'Material audiovisual', 'movie'], ['s-con', 'Contacto y redes', 'alternate_email']];
+    $('#page').innerHTML = `<div class="page-head flex between wrap"><div><h1>Editar perfil</h1><p>Mantén tu perfil actualizado. Los cambios de foto y biografía se publican después de que el equipo del Centro Actoral los apruebe.</p></div>
+      <a class="btn outline" href="perfil.html?id=${p.actor_id}">${ic('visibility')} Ver perfil público</a></div>
+    <form class="ed" id="f" onsubmit="return false">
+      <nav>${secs.map(s => `<a href="#${s[0]}">${ic(s[2])} ${s[1]}</a>`).join('')}</nav>
+      <div>
+        <div class="card" id="s-foto"><h3>${ic('photo_camera')} Foto de perfil</h3>
+          <div class="flex wrap" style="gap:24px;align-items:flex-start">
+            <div class="photo-drop ${p.foto ? 'has' : ''}" id="pdrop" style="${bg(p.foto)}"><span class="material-icons-round icon-person">person_outline</span><span class="cam">${ic('photo_camera')}</span></div>
+            <div style="flex:1;min-width:220px"><p class="small muted">Arrastra una nueva foto o haz clic sobre la imagen. JPG o PNG, máximo 5 MB.</p>
+              ${p.pendiente ? `<div class="ok-msg">${ic('hourglass_top')} Tienes cambios en revisión (versión ${p.pendiente.numero_version}). Lo público no cambia hasta que un administrador los apruebe; si guardas de nuevo, reemplazas ese borrador.</div>` : ''}
+              ${p.ultima_rechazada ? `<div class="err-msg">${ic('error_outline')} Tus últimos cambios fueron rechazados: ${esc(p.ultima_rechazada.motivo_rechazo || 'sin motivo indicado')}. Corrige y vuelve a guardar.</div>` : ''}
+              ${p.estado === 'APROBADO' ? '<p class="small muted">Tu perfil está aprobado: foto, biografía y características se actualizan cuando el administrador apruebe el cambio.</p>' : ''}</div></div>
+          <input type="file" id="foto" accept="image/*" hidden></div>
+
+        <div class="card" id="s-basico"><h3>${ic('person')} Información básica</h3>
+          <div class="row2"><div class="field"><label>Nombre completo</label><input value="${v(p.nombre_completo)}" readonly></div>
+            <div class="field"><label>Correo</label><input value="${v(p.correo)}" readonly></div></div>
+          <div class="row2"><div class="field"><label>Nombre artístico</label><input name="nombre_artistico" value="${v(p.nombre === p.nombre_completo ? '' : p.nombre)}"></div>
+            <div class="field"><label>Ocupación artística</label><input name="ocupacion" value="${v(p.ocupacion)}" placeholder="Ej. Actriz · Cantante · Bailarina"></div></div>
+          <div class="row3"><div class="field"><label>Teléfono</label><input name="telefono" value="${v(p.telefono)}"></div>
+            <div class="field"><label>Municipio / ciudad</label><input name="municipio" value="${v(p.municipio)}"></div>
+            <div class="field"><label>Nivel</label>${sel('nivel', ['Principiante', 'Intermedio', 'Avanzado'], p.nivel)}</div></div>
+          <div class="row3"><div class="field"><label>Género</label>${selC('genero', 'generos', p.genero)}</div>
+            <div class="field"><label>Estatura (cm)</label><input type="number" name="estatura_cm" min="50" max="250" value="${v(p.estatura_cm)}"></div><div></div></div>
+          <label class="check"><input type="checkbox" name="disponible" ${p.disponible ? 'checked' : ''}> Disponible para nuevos proyectos</label>
+          <label class="check mt1"><input type="checkbox" name="disponibilidad_viajar" ${p.disponibilidad_viajar ? 'checked' : ''}> Disponibilidad para viajar</label>
+          <label class="check mt1"><input type="checkbox" id="vitrina" ${p.autoriza_vitrina_publica ? 'checked' : ''}> Autorizo que mi perfil aprobado aparezca en la vitrina pública <span class="muted small">(se aplica al instante; solo mayores de edad)</span></label></div>
+
+        <div class="card" id="s-bio"><h3>${ic('notes')} Biografía</h3>
+          <div class="field mb0"><textarea name="biografia" style="min-height:150px" maxlength="2000">${v(p.biografia)}</textarea></div></div>
+
+        <div class="card" id="s-hab"><h3>${ic('theater_comedy')} Áreas y habilidades</h3>
+          <div class="lbl">Áreas en las que te desempeñas</div><div class="opt-group mb2" id="g-a">${[...AREAS, ...extraA].map(a => `<button type="button" class="opt ${areas.has(a) ? 'on' : ''}" data-v="${v(a)}">${v(a)}</button>`).join('')}</div>
+          <div class="lbl">Especialidades</div><div class="opt-group mb2" id="g-e">${[...ESP, ...extraE].map(a => `<button type="button" class="opt ${esp.has(a) ? 'on' : ''}" data-v="${v(a)}">${v(a)}</button>`).join('')}</div>
+          <div class="lbl">Otras habilidades con nivel (canto, danza, instrumentos...)</div><div id="r-hab"></div><button type="button" class="link">${ic('add')} Agregar habilidad</button></div>
+
+        <div class="card" id="s-car"><h3>${ic('accessibility_new')} Características para casting</h3>
+          <div class="row3"><div class="field"><label>Edad aparente (desde)</label><input type="number" name="edad_aparente_min" min="0" max="100" value="${v(p.edad_aparente_min)}" placeholder="Ej. 24"></div>
+            <div class="field"><label>Edad aparente (hasta)</label><input type="number" name="edad_aparente_max" min="0" max="100" value="${v(p.edad_aparente_max)}" placeholder="Ej. 32"></div>
+            <div class="field"><label>Contextura</label><input name="contextura" value="${v(p.contextura)}" placeholder="Ej. Atlética / delgada"></div></div>
+          <div class="row3"><div class="field"><label>Tono de piel</label>${selC('tono_piel', 'tonos_piel', p.tono_piel)}</div>
+            <div class="field"><label>Color de ojos</label>${selC('color_ojos', 'colores_ojos', p.color_ojos)}</div>
+            <div class="field"><label>Color de cabello</label>${selC('color_cabello', 'colores_cabello', p.color_cabello)}</div></div>
+          <div class="row2"><div class="field"><label>Dialecto / acento</label>${selC('dialecto', 'dialectos', p.dialecto)}</div>
+            <div class="field"><label>Provincia</label>${selC('provincia', 'provincias', p.provincia)}</div></div>
+          <div class="row2"><div class="field"><label>Talla de vestuario</label><input name="talla_ropa" value="${v(p.talla_ropa)}" placeholder="Ej. S / 36"></div>
+            <div class="field"><label>Calzado</label><input name="talla_calzado" value="${v(p.talla_calzado)}" placeholder="Ej. 38 EU"></div></div></div>
+
+        <div class="card" id="s-idi"><h3>${ic('translate')} Idiomas</h3><div id="r-idi"></div><button type="button" class="link">${ic('add')} Agregar idioma</button>
+          <h3 class="mt3">${ic('school')} Formación</h3><div id="r-for"></div><button type="button" class="link">${ic('add')} Agregar formación</button></div>
+
+        <div class="card" id="s-exp"><h3>${ic('work_outline')} Experiencia</h3><div id="r-exp"></div><button type="button" class="link">${ic('add')} Agregar experiencia</button></div>
+
+        <div class="card" id="s-mat"><h3>${ic('movie')} Material audiovisual</h3>
+          <div class="row2"><div class="field"><label>Reel (enlace de YouTube o Vimeo)</label><input name="reel_url" value="${v(reelActual)}" placeholder="https://www.youtube.com/watch?v=..."></div>
+            <div class="field"><label>Portafolio (enlace de YouTube o Vimeo)</label><input name="portafolio_url" value="${v(portActual)}" placeholder="https://vimeo.com/..."></div></div>
+          <div class="lbl">Fotografías del book</div>
+          <div class="gal-ed" id="gal">${p.fotos.map(f => `<div class="it" data-id="${f.multimedia_id}" style="${bg(f.miniatura || f.url)}"><button type="button" title="Eliminar">${ic('close')}</button></div>`).join('')}</div>
+          <button type="button" class="btn outline-turq sm mt1" id="add-f">${ic('add_photo_alternate')} Agregar fotos</button><input type="file" id="fotos" accept="image/*" multiple hidden>
+          ${otrosVideos.length ? `<div class="lbl mt2">Otros videos guardados</div>${otrosVideos.map(x => `<div class="flex mb1 vid-row" data-id="${x.multimedia_id}"><a class="link" href="${v(x.url)}" target="_blank" rel="noopener" style="flex:1">${v(x.titulo || x.url)}</a><button type="button" class="icon-btn" title="Eliminar">${ic('delete_outline')}</button></div>`).join('')}` : ''}
+          <p class="small muted mt2">Los videos se publican como enlaces de YouTube o Vimeo, así cargan rápido en todo el departamento.</p></div>
+
+        <div class="card" id="s-con"><h3>${ic('alternate_email')} Representación y redes</h3>
+          <div class="row2"><div class="field"><label>Agencia / representante</label><input name="agencia_nombre" value="${v(p.agencia_nombre)}" placeholder="Ej. Agencia Escena · Laura Medina"></div>
+            <div class="field"><label>Correo de contacto profesional</label><input type="email" name="agencia_correo" value="${v(p.agencia_correo)}"></div></div>
+          <div class="lbl">Redes profesionales</div><div id="r-red"></div><button type="button" class="link">${ic('add')} Agregar red social</button></div>
+
+        <div class="savebar"><span style="flex:1">${ic('info')} Recuerda guardar tus cambios.</span><a class="btn outline" style="background:transparent;color:#fff;border-color:#fff" href="cuenta.html">Cancelar</a><button class="btn lime" id="save">${ic('save')} Guardar cambios</button></div>
+      </div></form>`;
+
+    const getHab = repeater('r-hab', [['nombre', 'Habilidad'], ['nivel', 'Nivel', ['Básico', 'Intermedio', 'Avanzado']]], otras);
+    const getIdi = repeater('r-idi', [['idioma', 'Idioma'], ['nivel', 'Nivel', ['Nativo', 'A1 · Básico', 'A2 · Básico', 'B1 · Intermedio', 'B2 · Intermedio alto', 'C1 · Avanzado', 'C2 · Experto']]], p.idiomas);
+    const getFor = repeater('r-for', [['periodo', 'Periodo (Ej. 2020–2023)'], ['titulo', 'Programa / título'], ['institucion', 'Institución']], p.formacion);
+    const getExp = repeater('r-exp', [['proyecto', 'Proyecto'], ['tipo', 'Tipo', ['Cine', 'Televisión', 'Teatro', 'Cortometraje', 'Publicidad', 'Videoclip', 'Serie web', 'Otro']], ['rol', 'Personaje / rol'], ['anio', 'Año', 'number'], ['director', 'Director / productora']],
+      p.experiencias.map(e => ({ proyecto: e.nombre_proyecto, tipo: e.tipo_produccion, rol: e.rol_desempenado, anio: e.anio, director: e.director_o_productora })));
+    const getRed = repeater('r-red', [['plataforma', 'Red', ['Instagram', 'TikTok', 'YouTube', 'Facebook', 'X', 'LinkedIn', 'Vimeo']], ['url', 'Usuario o enlace']], p.redes.map(r => ({ plataforma: r.plataforma, url: r.url_perfil })));
+    $$('.opt').forEach(b => b.onclick = () => b.classList.toggle('on'));
+
+    const pd = $('#pdrop');
+    const setFoto = async file => { if (!file || !file.type.startsWith('image/')) return; st.foto = await comprimir(file); pd.style.backgroundImage = `url(${URL.createObjectURL(st.foto)})`; pd.classList.add('has'); toast('Foto lista. Guarda los cambios para enviarla.'); };
+    pd.onclick = () => $('#foto').click(); $('#foto').onchange = e => setFoto(e.target.files[0]);
+    ['dragenter', 'dragover'].forEach(ev => pd.addEventListener(ev, e => { e.preventDefault(); pd.classList.add('over'); }));
+    ['dragleave', 'drop'].forEach(ev => pd.addEventListener(ev, e => { e.preventDefault(); pd.classList.remove('over'); }));
+    pd.addEventListener('drop', e => setFoto(e.dataTransfer.files[0]));
+    $$('#gal .it button').forEach(b => b.onclick = () => { const it = b.parentElement; st.eliminar.has(it.dataset.id) ? st.eliminar.delete(it.dataset.id) : st.eliminar.add(it.dataset.id); it.classList.toggle('del'); });
+    $$('.vid-row button').forEach(b => b.onclick = () => { const r = b.parentElement; st.eliminar.add(r.dataset.id); r.remove(); });
+    $('#add-f').onclick = () => $('#fotos').click();
+    $('#fotos').onchange = async e => { for (const x of [...e.target.files].slice(0, 10)) { const c = await comprimir(x); st.fotos.push(c); $('#gal').insertAdjacentHTML('beforeend', `<div class="it" style="background-image:url(${URL.createObjectURL(c)});outline:3px solid var(--lime)"></div>`); } e.target.value = ''; };
+    $('#vitrina').onchange = async e => {
+      const el = e.target;
+      try { await api('/api/mi-perfil/vitrina', { method: 'PUT', body: { autoriza_vitrina_publica: el.checked } }); toast(el.checked ? 'Tu perfil podrá mostrarse en la vitrina cuando esté aprobado.' : 'Retiraste tu perfil de la vitrina.'); }
+      catch (err) { el.checked = !el.checked; toast(err.message, 'err'); }
+    };
+
+    $('#save').onclick = async () => {
+      const f = $('#f'), fd = new FormData();
+      for (const k of ['nombre_artistico', 'ocupacion', 'telefono', 'municipio', 'nivel', 'genero', 'estatura_cm', 'biografia', 'edad_aparente_min', 'edad_aparente_max', 'contextura', 'tono_piel', 'color_ojos', 'color_cabello', 'dialecto', 'provincia', 'talla_ropa', 'talla_calzado', 'reel_url', 'portafolio_url', 'agencia_nombre', 'agencia_correo'])
+        fd.append(k, f[k].value.trim());
+      fd.append('disponible', f.disponible.checked); fd.append('disponibilidad_viajar', f.disponibilidad_viajar.checked);
+      const hab = [...$$('#g-a .opt.on').map(b => ({ nombre: b.dataset.v, tipo: 'AREA' })), ...$$('#g-e .opt.on').map(b => ({ nombre: b.dataset.v, tipo: 'ESPECIALIDAD' })),
+        ...getHab().filter(h => h.nombre).map(h => ({ ...h, tipo: 'ESPECIALIDAD' }))];
+      fd.append('habilidades', JSON.stringify(hab)); fd.append('idiomas', JSON.stringify(getIdi())); fd.append('formacion', JSON.stringify(getFor()));
+      fd.append('experiencias', JSON.stringify(getExp())); fd.append('redes', JSON.stringify(getRed()));
+      fd.append('eliminar_multimedia', JSON.stringify([...st.eliminar]));
+      if (st.foto) fd.append('foto', st.foto);
+      st.fotos.forEach(x => fd.append('fotos', x));
+      const b = $('#save'); b.disabled = true; b.innerHTML = 'Guardando...';
+      try {
+        const resp = api('/api/mi-perfil', { method: 'PUT', body: fd }); await resp;
+        if (f.nombre_artistico.value.trim()) { S.nombre = f.nombre_artistico.value.trim(); store.set('ca_nombre', S.nombre); }
+        const r = await resp; toast(r.message || 'Cambios guardados');
+        setTimeout(() => location.href = 'cuenta.html', 1100);
+      } catch (e) { b.disabled = false; b.innerHTML = `${ic('save')} Guardar cambios`; toast(e.message, 'err'); }
+    };
+  }
+}
+</script>
+</body>
+</html>

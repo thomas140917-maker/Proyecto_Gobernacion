@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Administración de perfiles · Centro Actoral de Boyacá</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<style>
+  .chg { border: 1.5px solid var(--turq); border-radius: 20px; padding: 18px; background: #fff; }
+  .chg .hd { display: flex; gap: 14px; align-items: flex-start; }
+  .chg .hd .info { flex: 1; min-width: 0; }
+  .chg .hd b { color: var(--ink); font-size: 1.05rem; }
+  .chg .mid { display: flex; gap: 14px; align-items: center; margin: 14px 0; }
+  .chg .mid .meta { flex: 1; font-size: .8rem; color: var(--turq-2); display: flex; flex-direction: column; gap: 6px; }
+  .chg .mid .meta .material-icons-round { font-size: 16px; color: var(--petrol); }
+  .chg .newpic { width: 90px; height: 110px; border-radius: 12px; background: #ddd center/cover; flex: none; cursor: zoom-in; }
+  .chg .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .chg .btns .btn { padding: 10px; font-size: .88rem; }
+  .chg .btns .wide { grid-column: 1 / -1; }
+  .cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .cmp > div { border-radius: 14px; padding: 14px; font-size: .92rem; line-height: 1.55; }
+</style>
+</head>
+<body>
+<main id="page" class="content">
+  <div class="page-head"><h1>Administración de perfiles</h1><p>Revisa nuevas fotos, cambios en descripciones y gestiona restricciones.</p></div>
+  <div class="tabs mb2" id="tabs"></div>
+  <div id="list"><div class="spinner"></div></div>
+</main>
+<script src="js/app.js"></script>
+<script src="js/admin.js"></script>
+<script>
+if (shell({ active: 'perfiles', admin: true, require: 'admin' })) {
+  let tab = qs('tab') || 'fotos', D;
+  const head = (a, chip) => `<div class="hd"><div class="av petrol">${ic('person_outline')}</div><div class="info"><b>${esc(a.nombre)}</b>
+    <div class="small" style="color:var(--petrol)">Perfil de ${esc(rolLabel(a))}</div><div class="mt1">${chip}</div></div><button class="icon-btn" style="border:0" data-v="${a.actor_id}">${ic('chevron_right')}</button></div>`;
+  async function cargar() {
+    await catalogos();
+    D = await api('/api/admin/cambios');
+    const T = [['cambios', 'Cambios de perfil', D.cambios.length], ['rest', 'Restricciones', D.reportes.length + D.restringidos.length]];
+    if (tab !== 'cambios' && tab !== 'rest') tab = 'cambios';
+    $('#tabs').innerHTML = T.map(([k, t, n]) => `<button class="tab ${k === tab ? 'on' : ''}" data-t="${k}">${t} <span class="n">${n}</span></button>`).join('');
+    $$('#tabs .tab').forEach(b => b.onclick = () => { tab = b.dataset.t; history.replaceState(null, '', '?tab=' + tab); cargar(); });
+    const L = $('#list');
+    if (tab === 'cambios') L.innerHTML = D.cambios.length ? `<div class="grid g3">${D.cambios.map((a, i) => `<div class="chg">${head(a, `<span class="chip turq"><span class="dot"></span> ${a.foto_nueva ? 'Nueva foto' + (a.campos.length ? ' y datos' : '') : 'Cambios en datos'}</span>`)}
+        <div class="mid"><div class="meta"><span>${ic('event')} Enviado: ${fechaHora(a.enviado_en)}</span><span>${ic('edit_note')} ${a.campos.length} campo${a.campos.length === 1 ? '' : 's'} modificado${a.campos.length === 1 ? '' : 's'}</span>
+          <span>${ic('history')} Actual:</span><div class="av sm" style="${bg(a.foto)}">${a.foto ? '' : ic('person')}</div></div>
+          ${a.foto_nueva ? `<div class="newpic" data-src="${esc(a.foto_nueva)}" style="${bg(a.foto_nueva)}"></div>` : ''}</div>
+        <div class="btns"><button class="btn outline" data-v="${a.actor_id}">Ver perfil</button><button class="btn outline" data-cmp="${i}">Revisar cambios</button>
+          <button class="btn wide" data-ap="${i}"><span style="color:var(--lime)">Aprobar</span></button></div></div>`).join('')}</div>`
+      : `<div class="empty">${ic('task_alt')}No hay cambios de perfil por revisar.</div>`;
+    if (tab === 'rest') L.innerHTML = `<h3>Reportes pendientes</h3>${D.reportes.length ? `<div class="grid g3">${D.reportes.map(a => `<div class="chg">${head(a, `<span class="chip outline">${ic('lock')} Restricción</span>`)}
+        <div class="mid"><div class="meta"><span>${ic('event')} Solicitud: ${fechaHora(a.reportado_en)}</span><span>${ic('warning_amber')} Motivo: ${esc(a.motivo)}</span></div></div>
+        <div class="btns"><button class="btn outline" data-v="${a.actor_id}">Ver perfil</button><button class="btn outline" data-r="${a.reporte_id}" data-acc="denegar">Denegar</button>
+          <button class="btn wide" data-r="${a.reporte_id}" data-acc="aplicar"><span style="color:var(--lime)">Aplicar restricción</span></button></div></div>`).join('')}</div>`
+      : `<div class="empty">${ic('verified_user')}No hay reportes pendientes.</div>`}
+      <h3 class="mt3">Perfiles restringidos</h3>${D.restringidos.length ? D.restringidos.map(a => `<div class="list-card"><div class="av" style="${bg(a.foto)}">${a.foto ? '' : ic('person')}</div>
+        <div class="info"><b>${esc(a.nombre)}</b><div class="meta"><span>${ic('lock')} ${esc(a.motivo_restriccion || 'Sin motivo')}</span></div></div>
+        <div class="acts"><button class="btn soft sm" data-un="${a.actor_id}">${ic('lock_open')} Quitar restricción</button><button class="icon-btn" style="border:0" data-v="${a.actor_id}">${ic('chevron_right')}</button></div></div>`).join('')
+      : `<p class="muted">No hay perfiles restringidos. También puedes restringir un perfil aprobado desde su ficha.</p>`}`;
+
+    $$('[data-v]').forEach(b => b.onclick = () => verPerfilAdmin(b.dataset.v, cargar));
+    $$('.newpic').forEach(p => p.onclick = () => lightbox(p.dataset.src));
+    $$('[data-ap]').forEach(b => b.onclick = () => { const a = D.cambios[b.dataset.ap]; accion(`/api/admin/cambios/${a.actor_id}`, { accion: 'aprobar', version_id: a.version_id }, 'Cambios aprobados y publicados'); });
+    $$('[data-r]').forEach(b => b.onclick = async () => {
+      if (b.dataset.acc === 'aplicar' && !await confirmBox({ title: '¿Aplicar restricción?', text: 'El perfil dejará de mostrarse en la vitrina pública.', ok: 'Aplicar', danger: true, icon: 'lock' })) return;
+      accion(`/api/admin/reportes/${b.dataset.r}`, { accion: b.dataset.acc }, b.dataset.acc === 'aplicar' ? 'Restricción aplicada' : 'Reporte denegado');
+    });
+    $$('[data-un]').forEach(b => b.onclick = async () => { await api('/api/admin/restriccion/' + b.dataset.un, { method: 'PUT', body: { restringido: false } }); toast('Restricción eliminada'); cargar(); });
+    $$('[data-cmp]').forEach(b => b.onclick = () => {
+      const a = D.cambios[b.dataset.cmp];
+      const CAT = { genero: 'generos', tono_piel: 'tonos_piel', color_ojos: 'colores_ojos', color_cabello: 'colores_cabello', dialecto: 'dialectos', provincia: 'provincias' };
+      const ET = { nombre_artistico: 'Nombre artístico', tiene_experiencia: 'Tiene experiencia', biografia: 'Biografía', estatura_cm: 'Estatura (cm)', color_ojos: 'Color de ojos', color_cabello: 'Color de cabello', tono_piel: 'Tono de piel', contextura: 'Contextura', genero: 'Género', edad_aparente_min: 'Edad aparente (mín.)', edad_aparente_max: 'Edad aparente (máx.)', dialecto: 'Dialecto', provincia: 'Provincia' };
+      const val = (k, v) => v == null || v === '' ? '—' : CAT[k] ? etq(CAT[k], v) : typeof v === 'boolean' ? (v ? 'Sí' : 'No') : v;
+      const m = modal({ size: 'lg', title: 'Revisar cambios · ' + esc(a.nombre), icon: 'compare_arrows',
+        body: (a.foto_nueva ? `<div class="flex mb2" style="gap:18px"><div><small class="muted">ANTES</small><div class="newpic" style="width:120px;height:150px;${bg(a.foto_actual)}"></div></div><div><small class="muted">NUEVA</small><div class="newpic" style="width:120px;height:150px;${bg(a.foto_nueva)}"></div></div></div>` : '') +
+          (a.campos.length ? a.campos.map(c => `<div class="cmp mb1"><div style="background:#F3F5F6"><b class="small muted">ANTES · ${esc(ET[c.campo] || c.campo)}</b><p class="mt1">${esc(val(c.campo, c.publicado))}</p></div>
+          <div style="background:var(--turq-soft)"><b class="small" style="color:var(--petrol)">NUEVO</b><p class="mt1">${esc(val(c.campo, c.borrador))}</p></div></div>`).join('') : '<p class="muted">Solo cambió la foto.</p>'),
+        foot: `<button class="btn outline" data-x="rechazar">Rechazar cambios</button><button class="btn" data-x="aprobar"><span style="color:var(--lime)">Aprobar cambios</span></button>` });
+      m.$$('[data-x]').forEach(x => x.onclick = async () => {
+        if (x.dataset.x === 'aprobar') { m.close(); return accion(`/api/admin/cambios/${a.actor_id}`, { accion: 'aprobar', version_id: a.version_id }, 'Cambios aprobados y publicados'); }
+        const r = await rechazar(); if (!r) return; m.close();
+        accion(`/api/admin/cambios/${a.actor_id}`, { accion: 'rechazar', motivo: r.value, version_id: a.version_id }, 'Cambios rechazados');
+      });
+    });
+  }
+  async function accion(url, body, msg) { try { await api(url, { method: 'PUT', body }); toast(msg); cargar(); } catch (e) { toast(e.message, 'err'); } }
+  cargar().catch(e => $('#list').innerHTML = `<div class="err-msg">${esc(e.message)}</div>`);
+}
+</script>
+</body>
+</html>
