@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Explorar talento · Centro Actoral de Boyacá</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<style>
+  .search-layout { display: grid; grid-template-columns: 380px 1fr; gap: 30px; align-items: start; }
+  @media (max-width: 1100px) { .search-layout { grid-template-columns: 1fr; } }
+  .filters { background: var(--soft); border: 1.5px solid var(--turq-soft); border-radius: 22px; position: sticky; top: calc(var(--top-h) + 16px); max-height: calc(100vh - var(--top-h) - 32px); display: flex; flex-direction: column; overflow: hidden; }
+  @media (max-width: 1100px) { .filters { position: static; max-height: none; } }
+  .filters .fh { display: flex; align-items: center; gap: 10px; padding: 16px 20px; border-bottom: 1px solid #D9EEEA; color: var(--ink); font-weight: 600; }
+  .filters .fh h3 { margin: 0; flex: 1; font-weight: 600; cursor: pointer; display: flex; gap: 10px; align-items: center; }
+  .filters .fb { overflow-y: auto; padding: 0 20px; }
+  .filters.closed .fb, .filters.closed .ff { display: none; }
+  .fsec { padding: 18px 0; border-bottom: 1px solid #D9EEEA; }
+  .fsec:last-child { border: 0; }
+  .fsec .st { display: flex; align-items: center; gap: 10px; color: var(--ink); font-size: 1.05rem; margin-bottom: 14px; }
+  .fsec .st small { color: var(--turq-2); font-size: .7rem; font-weight: 700; }
+  .fsec .st .opc { margin-left: auto; font-size: .62rem; letter-spacing: .12em; color: var(--muted); font-weight: 700; }
+  .fsec .lbl { font-family: 'Inter'; font-weight: 600; font-size: .85rem; color: #222; margin: 14px 0 9px; display: flex; justify-content: space-between; }
+  .fsec .lbl span { color: var(--turq-2); font-size: .75rem; }
+  .fsec .opt { padding: 7px 13px; font-size: .8rem; border-radius: 9px; border-color: #D3E5E3; font-family: 'Inter'; }
+  .fsec .opt.on { background: var(--petrol); border-color: var(--petrol); }
+  .fsec select, .fsec input[type=text] { width: 100%; border: 1.5px solid #D3E5E3; border-radius: 10px; padding: 10px 12px; font: 500 .85rem 'Inter', sans-serif; background: #fff; }
+  input[type=range] { width: 100%; accent-color: var(--petrol); }
+  .filters .ff { padding: 14px 20px; display: flex; gap: 10px; border-top: 1px solid #D9EEEA; background: #fff; }
+  .filters .ff .btn { flex: 1; padding: 12px 10px; font-size: .85rem; }
+  .res-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+  .res-head h2 { color: var(--petrol-3); font-size: 1.15rem; margin: 0; }
+</style>
+</head>
+<body>
+<main id="page" class="content wide">
+  <div class="search-layout">
+    <aside class="filters" id="filters">
+      <div class="fh"><h3 id="ftoggle"><span class="material-icons-round">tune</span> Filtros de casting</h3><button class="link small" id="clear">Limpiar todo</button></div>
+      <div class="fb" id="fb"></div>
+      <div class="ff"><button class="btn outline sm" id="save"><span class="material-icons-round">bookmark_border</span> Guardar búsqueda</button><button class="btn turq sm" id="ver">Ver perfiles</button></div>
+    </aside>
+    <section>
+      <div class="res-head"><h2 id="rtitle">Perfiles sugeridos</h2><div class="flex"><span class="chip" id="rcount"></span><button class="link small hidden" id="load-saved"><span class="material-icons-round">bookmark</span> Usar búsqueda guardada</button></div></div>
+      <div id="qinfo"></div>
+      <div class="masonry" id="res"><div class="spinner"></div></div>
+    </section>
+  </div>
+</main>
+<script src="js/app.js"></script>
+<script>
+shell({ active: 'actores' });
+const F = { q: qs('q') || '' };
+const multi = new Set(['areas', 'esp', 'rol', 'formacion', 'idiomas', 'material']);
+const sec = (n, t, inner, opc) => `<div class="fsec"><div class="st"><small>0${n}</small> ${t}${opc ? '<span class="opc">OPCIONAL</span>' : ''}</div>${inner}</div>`;
+const chips = (k, arr) => `<div class="opt-group">${arr.map(v => `<button type="button" class="opt" data-k="${k}" data-v="${esc(Array.isArray(v) ? v[0] : v)}">${esc(Array.isArray(v) ? v[1] : v)}</button>`).join('')}</div>`;
+const edades = [...Array(76).keys()].map(i => i + 5);
+
+Promise.all([api('/api/habilidades'), api('/api/catalogos')]).then(([hs, C]) => {
+  const cod = l => (l || []).map(x => [x.codigo, x.etiqueta]);
+  const areas = hs.filter(h => h.tipo === 'AREA').map(h => h.nombre), esp = hs.filter(h => h.tipo === 'ESPECIALIDAD').map(h => h.nombre);
+  $('#fb').innerHTML =
+    sec(1, 'Proyecto', `<div class="lbl">Tipo de producción</div>${chips('areas', areas)}
+      <div class="lbl">Tipo de rol</div>${chips('rol', ['Protagonista', 'Reparto', 'Secundario', 'Figuración'])}`) +
+    sec(2, 'Perfil artístico', `<div class="lbl">Edad aparente (rango)</div>
+      <div class="flex"><select id="edad_min"><option value="">Desde</option>${edades.map(e => `<option>${e}</option>`).join('')}</select><span class="small muted">a</span>
+        <select id="edad_max"><option value="">Hasta</option>${edades.map(e => `<option>${e}</option>`).join('')}</select></div>
+      <div class="lbl">Estatura mínima <span id="est_l">Cualquiera</span></div><input type="range" id="est_min" min="0" max="200" step="5" value="0">
+      <div class="lbl">Género</div>${chips('genero', cod(C.generos).filter(g => g[0] !== 'PREFIERE_NO_DECIR'))}
+      <div class="lbl">Especialidades <span>Selección múltiple</span></div>${chips('esp', esp)}`) +
+    sec(3, 'Experiencia', `<div class="lbl">Nivel profesional</div><select id="nivel"><option value="">Cualquier nivel</option><option>Principiante</option><option>Intermedio</option><option>Avanzado</option></select>
+      <div class="lbl">Años de experiencia <span id="anios_l">Cualquiera</span></div><input type="range" id="anios" min="0" max="10" value="0">
+      <div class="lbl">Formación actoral</div>${chips('formacion', ['Escuela', 'Taller', ['cámara', 'Interpretación ante cámara'], 'Autodidacta'])}`, true) +
+    sec(4, 'Características para el personaje', `<div class="lbl">Color de cabello</div>${chips('cabello', cod(C.colores_cabello))}
+      <div class="lbl">Color de ojos</div>${chips('ojos', cod(C.colores_ojos))}
+      <div class="lbl">Idiomas <span>Selección múltiple</span></div>${chips('idiomas', ['Español', 'Inglés', 'Francés', 'Portugués'])}
+      <div class="lbl">Tono de piel</div>${chips('tono_piel', cod(C.tonos_piel))}
+      <div class="lbl">Provincia</div><select id="provincia"><option value="">Cualquiera</option>${(C.provincias || []).map(x => `<option value="${esc(x.codigo)}">${esc(x.etiqueta)}</option>`).join('')}</select>
+      <div class="lbl">Acentos</div>${chips('acento', cod(C.dialectos).slice(0, 8))}`, true) +
+    sec(5, 'Disponibilidad', `<div class="lbl">Ubicación</div><input type="text" id="ciudad" list="munis" placeholder="Seleccionar ciudad"><datalist id="munis">${['Tunja', 'Duitama', 'Sogamoso', 'Chiquinquirá', 'Paipa', 'Villa de Leyva', 'Moniquirá', 'Garagoa', 'Puerto Boyacá', 'Bogotá'].map(x => `<option value="${x}">`).join('')}</datalist>
+      <div class="lbl">Estado</div>${chips('disponible', [['1', 'Solo perfiles con disponibilidad confirmada']])}`) +
+    sec(6, 'Material de casting', `<div class="lbl">Contenido del perfil</div>${chips('material', [['foto', 'Fotografía profesional'], ['reel', 'Reel de actuación'], ['videobook', 'Videobook']])}`, true);
+
+  $$('#fb .opt').forEach(b => b.onclick = () => {
+    const k = b.dataset.k, v = b.dataset.v;
+    if (multi.has(k)) { const s = new Set((F[k] || '').split(',').filter(Boolean)); s.has(v) ? s.delete(v) : s.add(v); F[k] = [...s].join(','); }
+    else F[k] = F[k] === v ? '' : v;
+    sync(); buscar();
+  });
+  for (const id of ['edad_min', 'edad_max', 'nivel', 'ciudad', 'provincia']) $('#' + id).oninput = e => { F[id] = e.target.value; buscar(); };
+  $('#est_min').oninput = e => { F.est_min = +e.target.value || ''; $('#est_l').textContent = F.est_min ? F.est_min + ' cm' : 'Cualquiera'; buscar(); };
+  $('#anios').oninput = e => { F.anios = +e.target.value || ''; $('#anios_l').textContent = F.anios ? F.anios + '+ años' : 'Cualquiera'; buscar(); };
+  sync(); buscarYa();
+});
+
+function sync() {
+  $$('#fb .opt').forEach(b => {
+    const k = b.dataset.k, cur = F[k] || '';
+    b.classList.toggle('on', multi.has(k) ? cur.split(',').includes(b.dataset.v) : cur === b.dataset.v);
+  });
+  for (const id of ['edad_min', 'edad_max', 'nivel', 'ciudad', 'provincia']) if ($('#' + id)) $('#' + id).value = F[id] || '';
+  if ($('#est_min')) { $('#est_min').value = F.est_min || 0; $('#est_l').textContent = F.est_min ? F.est_min + ' cm' : 'Cualquiera'; }
+  if ($('#anios')) { $('#anios').value = F.anios || 0; $('#anios_l').textContent = F.anios ? F.anios + '+ años' : 'Cualquiera'; }
+  const s = document.querySelector('.search input'); if (s) s.value = F.q || '';
+}
+const activos = () => Object.entries(F).filter(([k, v]) => v !== '' && v != null);
+async function buscarYa() {
+  const p = new URLSearchParams(activos());
+  const box = $('#res');
+  try {
+    const list = await api('/api/actores?' + p);
+    const filtrando = activos().length > 0;
+    $('#rtitle').textContent = filtrando ? 'Perfiles compatibles sugeridos' : 'Perfiles sugeridos';
+    $('#rcount').textContent = `${list.length} perfil${list.length === 1 ? '' : 'es'}`;
+    $('#ver').textContent = `Ver ${list.length} perfil${list.length === 1 ? '' : 'es'}`;
+    $('#qinfo').innerHTML = F.q ? `<p class="muted">Resultados para "<b>${esc(F.q)}</b>" <button class="link small" id="qx">Quitar ${ic('close')}</button></p>` : '';
+    if ($('#qx')) $('#qx').onclick = () => { F.q = ''; sync(); buscarYa(); };
+    box.innerHTML = list.length ? list.map((a, i) => actorCard(a, { dark: i % 4 === 1 })).join('')
+      : `<div class="empty" style="column-span:all">${ic('person_search')}No encontramos perfiles con esos filtros.<br><button class="btn soft sm mt2" onclick="limpiar()">Limpiar filtros</button></div>`;
+  } catch (e) { box.innerHTML = `<div class="err-msg">${esc(e.message)}</div>`; }
+}
+const buscar = debounce(buscarYa, 300);
+function limpiar() { for (const k of Object.keys(F)) F[k] = ''; sync(); buscarYa(); }
+$('#clear').onclick = limpiar;
+$('#ver').onclick = () => { $('#res').scrollIntoView({ behavior: 'smooth', block: 'start' }); if (innerWidth < 1100) $('#filters').classList.add('closed'); };
+$('#ftoggle').onclick = () => $('#filters').classList.toggle('closed');
+if (innerWidth < 1100) $('#filters').classList.add('closed');
+$('#save').onclick = () => { store.set('ca_busqueda', JSON.stringify(F)); toast('Búsqueda guardada en este navegador'); $('#load-saved').classList.remove('hidden'); };
+if (store.get('ca_busqueda')) $('#load-saved').classList.remove('hidden');
+$('#load-saved').onclick = () => { try { Object.assign(F, JSON.parse(store.get('ca_busqueda'))); } catch {} sync(); buscarYa(); toast('Búsqueda guardada aplicada'); };
+const sf = document.querySelector('.search');
+if (sf) sf.onsubmit = e => { e.preventDefault(); F.q = sf.q.value.trim(); history.replaceState(null, '', F.q ? '?q=' + encodeURIComponent(F.q) : 'actores.html'); buscarYa(); };
+</script>
+</body>
+</html>

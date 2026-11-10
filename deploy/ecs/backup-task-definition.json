@@ -1,0 +1,38 @@
+{
+  "family": "centro-actoral-backup",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/centro-actoral-ecs-execution",
+  "taskRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/centro-actoral-backup-task",
+  "containerDefinitions": [
+    {
+      "name": "backup",
+      "image": "<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/centro-actoral-backup:latest",
+      "essential": true,
+      "entryPoint": ["/usr/local/bin/backup.sh"],
+      "environment": [
+        { "name": "TZ", "value": "America/Bogota" },
+        { "name": "PGHOST", "value": "<ENDPOINT_RDS>" },
+        { "name": "PGUSER", "value": "centroactoral" },
+        { "name": "PGDATABASE", "value": "dbcentroactoral" },
+        { "name": "BACKUP_S3_BUCKET", "value": "centro-actoral-prod-backups" },
+        { "name": "BACKUP_S3_PREFIX", "value": "postgres" },
+        { "name": "AWS_DEFAULT_REGION", "value": "<REGION>" }
+      ],
+      "secrets": [
+        { "name": "PGPASSWORD", "valueFrom": "arn:aws:secretsmanager:<REGION>:<ACCOUNT_ID>:secret:centro-actoral/DB_PASSWORD" },
+        { "name": "BACKUP_HEARTBEAT_URL", "valueFrom": "arn:aws:secretsmanager:<REGION>:<ACCOUNT_ID>:secret:centro-actoral/BACKUP_HEARTBEAT_URL" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/centro-actoral-backup",
+          "awslogs-region": "<REGION>",
+          "awslogs-stream-prefix": "backup"
+        }
+      }
+    }
+  ]
+}

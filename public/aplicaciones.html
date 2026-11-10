@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mis aplicaciones · Centro Actoral de Boyacá</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<style>
+  .app-card { background: var(--petrol); color: #fff; border-radius: 20px; padding: 18px; box-shadow: 0 6px 0 var(--turq); }
+  .app-card .top { display: flex; gap: 14px; align-items: flex-start; }
+  .app-card .tile { width: 64px; height: 64px; border-radius: 14px; background: var(--turq); color: #fff; }
+  .app-card .tile .material-icons-round { font-size: 34px; color: #fff; }
+  .app-card b.t { font-size: 1.02rem; display: block; }
+  .app-card .sub { font-size: .82rem; opacity: .9; margin: 3px 0 6px; }
+  .app-card .m { display: flex; gap: 14px; flex-wrap: wrap; font-size: .78rem; opacity: .95; }
+  .app-card .bot { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
+  .banner { display: flex; align-items: center; gap: 14px; background: var(--lime); color: var(--petrol); border-radius: 16px; padding: 14px 18px; font-weight: 600; margin-bottom: 18px; }
+  .banner .material-icons-round { margin-left: auto; width: 34px; height: 34px; border: 2px solid var(--petrol); border-radius: 50%; display: grid; place-items: center; }
+  .res-chip { font-size: .7rem; border-radius: 20px; padding: 3px 10px; font-weight: 700; white-space: nowrap; }
+</style>
+</head>
+<body>
+<main id="page" class="content">
+  <div id="svgwave"></div>
+  <div class="page-head"><h1>Mis aplicaciones</h1><p>Consulta el estado de tus postulaciones a convocatorias.</p></div>
+  <div id="banner"></div>
+  <div class="tabs mb2" id="tabs"></div>
+  <div class="grid g2" id="list"><div class="spinner"></div></div>
+</main>
+<script src="js/app.js"></script>
+<script>
+if (shell({ active: 'aplicaciones', require: 'actor' })) {
+  $('#svgwave').outerHTML = SVG.wave;
+  const ICON = t => /cine|pel/i.test(t) ? 'movie' : /teatro/i.test(t) ? 'theater_comedy' : /comercial|publi/i.test(t) ? 'storefront' : /corto/i.test(t) ? 'eco' : /serie|tele/i.test(t) ? 'live_tv' : 'photo_camera';
+  const GRUPOS = [['todas', 'Todas', () => true], ['rev', 'En revisión', a => ['POSTULADO', 'EN_REVISION'].includes(a.estado)], ['sel', 'Preseleccionadas', a => a.estado === 'PRESELECCIONADO'], ['fin', 'Finalizadas', a => ['SELECCIONADO', 'RECHAZADO'].includes(a.estado)]];
+  let L = [], g = 'todas';
+  const track = e => {
+    const n = { POSTULADO: 1, EN_REVISION: 1, PRESELECCIONADO: 2, SELECCIONADO: 3, RECHAZADO: 3 }[e] || 1, fin = n === 3;
+    const p = (i, t) => `<div class="p ${i < n || fin ? 'ok' : i === n ? 'cur' : ''}"><div class="c">${i < n || fin ? '✓' : i}</div>${t}</div>`;
+    return `<div class="track">${p(1, 'En revisión')}<div class="ln ${n > 1 ? 'ok' : ''}"></div>${p(2, 'Preselección')}<div class="ln ${n > 2 ? 'ok' : ''}"></div>${p(3, 'Resultado')}</div>`;
+  };
+  const draw = () => {
+    $('#tabs').innerHTML = GRUPOS.map(([k, t, f]) => `<button class="tab ${k === g ? 'on' : ''}" data-g="${k}">${t} <span class="n">${L.filter(f).length}</span></button>`).join('');
+    $$('#tabs .tab').forEach(b => b.onclick = () => { g = b.dataset.g; draw(); });
+    const items = L.filter(GRUPOS.find(x => x[0] === g)[2]);
+    $('#list').innerHTML = items.length ? items.map(a => `<div class="app-card">
+      <div class="top"><div class="tile" style="${bg(a.imagen_url)}">${a.imagen_url ? '' : ic(ICON((a.tipo_oportunidad || '') + a.titulo))}</div>
+        <div style="flex:1;min-width:0"><div class="flex between" style="align-items:flex-start"><b class="t">${esc(a.titulo)}</b>
+          ${a.estado === 'SELECCIONADO' ? '<span class="res-chip" style="background:var(--lime);color:var(--petrol)">Seleccionado/a</span>' : a.estado === 'RECHAZADO' ? '<span class="res-chip" style="background:#fff;color:var(--petrol)">No seleccionado/a</span>' : ''}</div>
+          <div class="sub">${esc(a.perfiles_requeridos || a.tipo_oportunidad || '')}</div>
+          <div class="m"><span>${ic('place')} ${esc(a.ubicacion || 'Boyacá')}</span><span>${ic('event')} Cierre: ${fecha(a.fecha_cierre)}</span></div></div></div>
+      <div class="bot"><button class="icon-btn light" data-id="${a.postulacion_id}" title="Ver convocatoria">${ic('open_in_new')}</button>${track(a.estado)}
+        <button class="icon-btn light" data-id="${a.postulacion_id}" title="Ver detalle">${ic('chevron_right')}</button></div></div>`).join('')
+      : `<div class="empty" style="grid-column:1/-1">${ic('assignment')}${L.length ? 'No hay aplicaciones en este estado.' : 'Aún no te has postulado a ninguna convocatoria.'}<br><a class="btn soft mt2" href="postulaciones.html">Ver convocatorias abiertas</a></div>`;
+    $$('[data-id]').forEach(b => b.onclick = () => detalle(L.find(x => x.postulacion_id === b.dataset.id)));
+  };
+  const detalle = a => {
+    const txt = { POSTULADO: 'Recibimos tu postulación. Pronto la revisará el equipo de la convocatoria.', EN_REVISION: 'Tu postulación está siendo revisada por el equipo de la convocatoria.', PRESELECCIONADO: '¡Avanzaste! Tu perfil está en la etapa de selección.', SELECCIONADO: '¡Felicitaciones! Fuiste seleccionado/a. Pronto te contactarán con los siguientes pasos.', RECHAZADO: 'En esta ocasión no fuiste seleccionado/a. ¡Sigue postulándote!' }[a.estado];
+    const m = modal({
+      size: 'lg', title: esc(a.titulo), icon: 'assignment',
+      body: `<div class="card-petrol mb2" style="box-shadow:0 5px 0 var(--turq)">${track(a.estado)}<p class="mt2 mb0">${txt || ''}</p></div>
+        <p>${esc(a.descripcion || '')}</p>${a.requisitos ? `<h3>Requisitos</h3><p style="white-space:pre-line">${esc(a.requisitos)}</p>` : ''}
+        <p class="small muted">Postulado el ${fecha(a.postulado_en, true)} · ${esc(a.entidad || 'Centro Actoral de Boyacá')} · ${esc(etq('modalidades', a.modalidad))}</p>
+        ${['POSTULADO', 'EN_REVISION'].includes(a.estado) ? `<button class="btn outline danger sm" id="retirar">${ic('undo')} Retirar mi postulación</button>` : ''}`
+    });
+    const r = m.$('#retirar');
+    if (r) r.onclick = async () => {
+      if (!await confirmBox({ title: '¿Retirar tu postulación?', text: 'Podrás volver a postularte mientras la convocatoria siga abierta.', ok: 'Retirar', danger: true, icon: 'undo' })) return;
+      try { await api('/api/postulaciones/' + a.postulacion_id, { method: 'DELETE' }); m.close(); toast('Postulación retirada'); L = L.filter(x => x.postulacion_id !== a.postulacion_id); draw(); }
+      catch (e) { toast(e.message, 'err'); }
+    };
+  };
+  api('/api/mis-aplicaciones').then(list => {
+    L = list;
+    const enProceso = L.filter(a => ['POSTULADO', 'EN_REVISION', 'PRESELECCIONADO'].includes(a.estado)).length;
+    $('#banner').innerHTML = L.length ? `<div class="banner">¡Vas muy bien! <b>${enProceso} de ${L.length}</b> convocatorias en proceso <span class="material-icons-round">check</span></div>` : '';
+    draw();
+  }).catch(e => $('#list').innerHTML = `<div class="err-msg">${esc(e.message)}</div>`);
+}
+</script>
+</body>
+</html>

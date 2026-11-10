@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Verificar correo · Centro Actoral de Boyacá</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<style>#page.content{max-width:none;padding:0}.pw{position:relative}.pw button{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:0;cursor:pointer;color:var(--muted)}</style>
+</head>
+<body>
+<main id="page" class="content">
+  <div class="auth-wrap">
+    <div class="auth-art"><div style="position:relative;max-width:460px">
+      <div class="brand mb2"><span class="logo"><span class="material-icons-round">theater_comedy</span></span><span><b style="color:#fff">CENTRO ACTORAL</b><small style="color:var(--lime)">DE BOYACÁ</small></span></div>
+      <h1>Confirmando tu correo</h1><p style="opacity:.9">Un paso más para dejar tu cuenta lista.</p></div></div>
+    <div class="auth-form"><div class="box" id="box"></div></div>
+  </div>
+</main>
+<script src="js/app.js"></script>
+<script>
+shell({});
+const box = $('#box');
+const token = new URLSearchParams(location.hash.slice(1)).get('token') || '';
+history.replaceState(null, '', location.pathname);
+box.innerHTML = '<div class="spinner"></div>';
+(async () => {
+  try {
+    if (!/^[a-f0-9]{64}$/.test(token)) throw new Error('El enlace no es válido o está incompleto.');
+    const d = await api('/api/verificar-correo', { method: 'POST', body: { token } });
+    box.innerHTML = `<div class="big-ok">${ic('check')}</div><h1 class="mt1">${esc(d.message)}</h1><p class="muted">Tu correo quedó confirmado.</p><a class="btn block big mt2" href="${S.rol ? 'cuenta.html' : 'login.html'}">Continuar</a>`;
+  } catch (er) {
+    box.innerHTML = `<div class="err-msg">${esc(er.message)}</div><p class="muted mt2">Inicia sesión y pulsa «Reenviar verificación» en tu cuenta para recibir un enlace nuevo.</p><a class="btn block big mt2" href="login.html">Iniciar sesión</a>`;
+  }
+})();
+</script>
+</body>
+</html>

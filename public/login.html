@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Iniciar sesión · Centro Actoral de Boyacá</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<style>
+  #page.content { max-width: none; padding: 0; }
+  .auth-art .blob { position: absolute; border-radius: 50%; }
+  .pw { position: relative; }
+  .pw button { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: 0; cursor: pointer; color: var(--muted); }
+</style>
+</head>
+<body>
+<main id="page" class="content">
+  <div class="auth-wrap">
+    <div class="auth-art">
+      <span class="blob" style="width:340px;height:340px;background:var(--turq);right:-120px;bottom:-140px;opacity:.9"></span>
+      <span class="blob" style="width:200px;height:200px;background:var(--lime);right:120px;bottom:-110px"></span>
+      <span class="blob" style="width:26px;height:26px;background:var(--lime);right:90px;bottom:150px"></span>
+      <div style="position:relative;max-width:460px">
+        <div class="brand mb2"><span class="logo"><span class="material-icons-round">theater_comedy</span></span><span><b style="color:#fff">CENTRO ACTORAL</b><small style="color:var(--lime)">DE BOYACÁ</small></span></div>
+        <h1>Tu próximo escenario empieza aquí</h1>
+        <p style="opacity:.9">Ingresa para seguir tu postulación, aplicar a convocatorias y ver tu progreso en los cursos. Los administradores ingresan con las credenciales asignadas por el Centro Actoral.</p>
+      </div>
+    </div>
+    <div class="auth-form"><div class="box" id="box"></div></div>
+  </div>
+</main>
+<script src="js/app.js"></script>
+<script>
+shell({});
+const next = qs('next');
+const destino = rol => next && !/^https?:|\/\//.test(next) && (rol === 'admin' ? next.startsWith('admin') : !next.startsWith('admin')) ? next : rol === 'admin' ? 'admin.html' : 'cuenta.html';
+const box = $('#box');
+if (S.rol) {
+  box.innerHTML = `<h1>Ya iniciaste sesión</h1><p class="muted">Estás conectado como <b>${esc(S.nombre || '')}</b> (${S.rol === 'admin' ? 'administrador' : 'actor'}).</p>
+    <a class="btn block big mt2" href="${destino(S.rol)}">Continuar</a><button class="btn outline block mt1" onclick="logout(false);location.reload()">Cerrar sesión</button>`;
+} else {
+  box.innerHTML = `<span class="eyebrow">Bienvenido</span><h1 class="mt1">Iniciar sesión</h1>
+    <p class="muted">Actores, actrices y administradores.</p><div id="err"></div>
+    <form id="f" class="mt2">
+      <div class="field"><label>Correo electrónico</label><div class="inp-ic"><span class="material-icons-round">mail_outline</span><input type="email" name="correo" required autocomplete="username" placeholder="tucorreo@email.com"></div></div>
+      <div class="field"><label>Contraseña</label><div class="pw"><input type="password" name="contrasena" required autocomplete="current-password" style="padding-right:46px"><button type="button" id="eye" aria-label="Mostrar contraseña"><span class="material-icons-round">visibility</span></button></div></div>
+      <button class="btn block big mt1" id="go">Ingresar</button>
+    </form>
+    <div class="card mt3" style="background:var(--soft)"><b style="color:var(--ink)">¿Aún no tienes perfil?</b><p class="small muted mb1">Postúlate como actor o actriz al Registro Departamental de talento.</p>
+      <a class="btn lime sm" href="preparar.html">Postularme</a></div>
+    <p class="small mt2"><a class="link" href="recuperar.html">¿Olvidaste tu contraseña?</a></p>`;
+  $('#eye').onclick = () => { const i = $('#f').contrasena; i.type = i.type === 'password' ? 'text' : 'password'; $('#eye span').textContent = i.type === 'password' ? 'visibility' : 'visibility_off'; };
+  $('#f').onsubmit = async e => {
+    e.preventDefault();
+    const b = $('#go'); b.disabled = true; b.textContent = 'Ingresando...';
+    try {
+      const d = await api('/api/login', { method: 'POST', body: { correo: e.target.correo.value.trim(), contrasena: e.target.contrasena.value } });
+      login(d); location.href = destino(d.rol);
+    } catch (er) { $('#err').innerHTML = `<div class="err-msg">${esc(er.message)}</div>`; b.disabled = false; b.textContent = 'Ingresar'; }
+  };
+}
+</script>
+</body>
+</html>

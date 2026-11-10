@@ -1,0 +1,446 @@
+// Fuente de verdad: db/migrations/*.sql. Este schema solo mapea lo que ya existe en la BD.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  url      = env("DATABASE_URL")
+  provider = "postgresql"
+}
+
+enum tipo_documento_enum {
+  CC
+  CE
+  PASAPORTE
+  NIT
+}
+
+enum estado_perfil_enum {
+  PENDIENTE
+  APROBADO
+  RECHAZADO
+}
+
+enum estado_convocatoria_enum {
+  PROXIMA
+  ACTIVA
+  EN_PAUSA
+  CERRADA
+}
+
+enum estado_postulacion_enum {
+  POSTULADO
+  EN_REVISION
+  PRESELECCIONADO
+  SELECCIONADO
+  RECHAZADO
+}
+
+enum tipo_multimedia_enum {
+  FOTO_PERFIL
+  FOTO_BOOK
+  REEL_PRESENTACION
+  ENLACE_PORTAFOLIO
+  DOCUMENTO
+}
+
+enum estado_version_enum {
+  PENDIENTE
+  APROBADA
+  RECHAZADA
+  HISTORICA
+}
+
+enum tipo_accion_auditoria_enum {
+  CREAR
+  ACTUALIZAR
+  ELIMINAR
+  ACCION_ADMINISTRADOR
+}
+
+enum tipo_curso_enum {
+  CURSO
+  TALLER
+}
+
+enum estado_curso_enum {
+  BORRADOR
+  ABIERTO
+  EN_CURSO
+  FINALIZADO
+  CANCELADO
+}
+
+enum estado_inscripcion_enum {
+  INSCRITO
+  LISTA_ESPERA
+  CANCELADA
+  COMPLETADA
+  NO_COMPLETADA
+}
+
+enum tipo_actividad_enum {
+  SESION
+  TAREA
+  EVALUACION
+}
+
+enum tipo_certificado_enum {
+  REGISTRO
+  CURSO
+}
+
+model actores {
+  actor_id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  correo           String              @unique @db.VarChar(201)
+  contrasena_hash  String              @db.VarChar(201)
+  nombre_completo  String              @db.VarChar(200)
+  tipo_documento   tipo_documento_enum
+  numero_documento String              @unique @db.VarChar(50)
+  fecha_nacimiento DateTime            @db.Date
+  municipio        String              @db.VarChar(100)
+  ciudad           String              @db.VarChar(100)
+  telefono         String              @db.VarChar(20)
+  acepta_terminos  Boolean
+  esta_activo      Boolean             @default(true)
+  creado_en        DateTime            @default(now()) @db.Timestamp(6)
+
+  perfil        perfiles_actores?
+  acudientes    acudientes_legales[]
+  habilidades   actores_habilidades[]
+  experiencias  experiencias_actor[]
+  redes         redes_sociales_actor[]
+  multimedia    archivos_multimedia[]
+  postulaciones postulaciones_castings[]
+  auditoria     historial_auditoria[]
+  intentos_fallidos Int       @default(0)
+  bloqueado_hasta   DateTime? @db.Timestamp(6)
+  versiones         perfiles_versiones[]
+  inscripciones_curso inscripciones_curso[]
+  certificados        certificados[]
+}
+
+model administradores {
+  admin_id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  correo          String   @unique @db.VarChar(201)
+  contrasena_hash String   @db.VarChar(201)
+  nombre          String   @db.VarChar(100)
+  apellido        String   @db.VarChar(100)
+  esta_activo     Boolean  @default(true)
+  creado_en       DateTime @default(now()) @db.Timestamp(6)
+  intentos_fallidos         Int       @default(0)
+  bloqueado_hasta           DateTime? @db.Timestamp(6)
+  contrasena_actualizada_en DateTime  @default(now()) @db.Timestamp(6)
+
+  perfiles_revisados    perfiles_actores[]
+  acudientes_verificados acudientes_legales[]
+  cursos                cursos_y_talleres[]
+  noticias              noticias[]
+  convocatorias         convocatorias[]
+  auditoria             historial_auditoria[]
+  tokens                tokens_recuperacion[]
+  versiones_revisadas perfiles_versiones[]
+  postulaciones_revisadas postulaciones_castings[]
+  inscripciones_revisadas inscripciones_curso[]
+  certificados_revocados  certificados[]
+}
+
+model perfiles_actores {
+  actor_id              String             @id @db.Uuid
+  nombre_artistico      String?            @db.VarChar(100)
+  tiene_experiencia     Boolean
+  biografia             String?
+  foto_perfil_url       String?
+  estado                estado_perfil_enum @default(PENDIENTE)
+  motivo_rechazo        String?
+  revisado_en           DateTime?          @db.Timestamp(6)
+  revisado_por_admin_id String?            @db.Uuid
+  actualizado_en        DateTime           @default(now()) @db.Timestamp(6)
+  estatura_cm           Int?
+  color_ojos            String?            @db.VarChar(50)
+  color_cabello         String?            @db.VarChar(50)
+  tono_piel             String?            @db.VarChar(50)
+  contextura            String?            @db.VarChar(50)
+
+  actor   actores          @relation(fields: [actor_id], references: [actor_id], onDelete: Cascade)
+  revisor administradores? @relation(fields: [revisado_por_admin_id], references: [admin_id])
+  genero                   String? @db.VarChar(20)
+  edad_aparente_min        Int?    @db.SmallInt
+  edad_aparente_max        Int?    @db.SmallInt
+  dialecto                 String? @db.VarChar(40)
+  provincia                String? @db.VarChar(40)
+  autoriza_vitrina_publica Boolean @default(false)
+}
+
+model acudientes_legales {
+  acudiente_id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actor_id                   String   @db.Uuid
+  nombre_acudiente           String   @db.VarChar(200)
+  documento_acudiente        String   @db.VarChar(50)
+  telefono_acudiente         String   @db.VarChar(20)
+  correo_acudiente           String   @db.VarChar(201)
+  url_documento_autorizacion String
+  esta_verificado            Boolean  @default(false)
+  verificado_por_admin_id    String?  @db.Uuid
+
+  actor     actores          @relation(fields: [actor_id], references: [actor_id], onDelete: Cascade)
+  verificador administradores? @relation(fields: [verificado_por_admin_id], references: [admin_id])
+}
+
+model habilidades {
+  habilidad_id String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre       String  @unique @db.VarChar(100)
+  tipo         String  @default("ESPECIALIDAD") @db.VarChar(50)
+  descripcion  String?
+
+  actores actores_habilidades[]
+  convocatorias convocatorias_habilidades[]
+}
+
+model actores_habilidades {
+  actor_id         String  @db.Uuid
+  habilidad_id     String  @db.Uuid
+  descripcion_otra String? @db.VarChar(100)
+
+  actor     actores     @relation(fields: [actor_id], references: [actor_id], onDelete: Cascade)
+  habilidad habilidades @relation(fields: [habilidad_id], references: [habilidad_id], onDelete: Cascade)
+
+  @@id([actor_id, habilidad_id])
+}
+
+model experiencias_actor {
+  experiencia_id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actor_id              String  @db.Uuid
+  nombre_proyecto       String  @db.VarChar(100)
+  tipo_produccion       String  @db.VarChar(100)
+  rol_desempenado       String  @db.VarChar(100)
+  anio                  Int
+  director_o_productora String? @db.VarChar(100)
+
+  actor actores @relation(fields: [actor_id], references: [actor_id], onDelete: Cascade)
+}
+
+model redes_sociales_actor {
+  red_id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actor_id   String @db.Uuid
+  plataforma String @db.VarChar(100)
+  url_perfil String
+
+  actor actores @relation(fields: [actor_id], references: [actor_id], onDelete: Cascade)
+}
+
+model archivos_multimedia {
+  multimedia_id String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actor_id      String               @db.Uuid
+  url_archivo   String
+  tipo_archivo  tipo_multimedia_enum
+  titulo        String?              @db.VarChar(100)
+  subido_en     DateTime             @default(now()) @db.Timestamp(6)
+
+  actor actores @relation(fields: [actor_id], references: [actor_id], onDelete: Cascade)
+  almacenamiento  String  @default("S3") @db.VarChar(10)
+  url_miniatura   String?
+  mime_type       String? @db.VarChar(100)
+  tamano_bytes    Int?
+  ancho           Int?
+  alto            Int?
+  proveedor_video String? @db.VarChar(20)
+  id_video        String? @db.VarChar(64)
+}
+
+model cursos_y_talleres {
+  curso_id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  creado_por_admin_id      String   @db.Uuid
+  titulo                   String   @db.VarChar(200)
+  descripcion              String?
+  instructor               String?  @db.VarChar(100)
+  fecha_inicio_inscripcion DateTime @db.Timestamp(6)
+  fecha_inicio_curso       DateTime @db.Timestamp(6)
+  es_proceso_formacion     Boolean
+  cupo_maximo              Int
+  creado_en                DateTime @default(now()) @db.Timestamp(6)
+
+  admin administradores @relation(fields: [creado_por_admin_id], references: [admin_id])
+  tipo                 tipo_curso_enum   @default(CURSO)
+  estado               estado_curso_enum @default(BORRADOR)
+  fecha_fin_curso      DateTime?         @db.Timestamp(6)
+  modalidad            String            @default("PRESENCIAL") @db.VarChar(50)
+  lugar                String?           @db.VarChar(200)
+  solo_mayores_de_edad Boolean           @default(false)
+  horas_totales        Int?
+  actualizado_en       DateTime          @default(now()) @db.Timestamp(6)
+  actividades          actividades_curso[]
+  inscripciones        inscripciones_curso[]
+  certificados         certificados[]
+}
+
+model noticias {
+  noticia_id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  creado_por_admin_id         String    @db.Uuid
+  titulo                      String    @db.VarChar(200)
+  resumen_para_carta          String    @db.VarChar(200)
+  resumen_para_galeria        String
+  imagen_url                  String?
+  inicio_descripcion_semestre DateTime? @db.Date
+  publicado_en                DateTime  @default(now()) @db.Timestamp(6)
+
+  admin administradores @relation(fields: [creado_por_admin_id], references: [admin_id])
+}
+
+model convocatorias {
+  convocatoria_id     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  creado_por_admin_id String                   @db.Uuid
+  titulo              String                   @db.VarChar(200)
+  descripcion         String
+  requisitos          String?
+  ubicacion           String?                  @db.VarChar(100)
+  modalidad           String                   @db.VarChar(50)
+  cupo_maximo         Int
+  fecha_cierre        DateTime                 @db.Timestamp(6)
+  estado              estado_convocatoria_enum
+  creado_en           DateTime                 @default(now()) @db.Timestamp(6)
+
+  admin         administradores          @relation(fields: [creado_por_admin_id], references: [admin_id])
+  postulaciones postulaciones_castings[]
+  fecha_apertura       DateTime? @db.Timestamp(6)
+  edad_aparente_min    Int?      @db.SmallInt
+  edad_aparente_max    Int?      @db.SmallInt
+  estatura_min_cm      Int?
+  estatura_max_cm      Int?
+  generos              String[]  @default([])
+  tonos_piel           String[]  @default([])
+  colores_ojos         String[]  @default([])
+  colores_cabello      String[]  @default([])
+  dialectos            String[]  @default([])
+  provincias           String[]  @default([])
+  municipios           String[]  @default([])
+  solo_mayores_de_edad Boolean   @default(false)
+  actualizado_en       DateTime  @default(now()) @db.Timestamp(6)
+  habilidades          convocatorias_habilidades[]
+}
+
+model postulaciones_castings {
+  postulacion_id  String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  convocatoria_id String                  @db.Uuid
+  actor_id        String                  @db.Uuid
+  estado          estado_postulacion_enum @default(POSTULADO)
+  postulado_en    DateTime                @default(now()) @db.Timestamp(6)
+
+  convocatoria convocatorias @relation(fields: [convocatoria_id], references: [convocatoria_id], onDelete: Cascade)
+  actor        actores       @relation(fields: [actor_id], references: [actor_id], onDelete: Cascade)
+
+  @@unique([convocatoria_id, actor_id])
+  compatibilidad         Int       @default(0) @db.SmallInt
+  detalle_compatibilidad Json?     @db.JsonB
+  notas_admin            String?
+  revisado_por_admin_id  String?   @db.Uuid
+  actualizado_en         DateTime  @default(now()) @db.Timestamp(6)
+  revisor                administradores? @relation(fields: [revisado_por_admin_id], references: [admin_id])
+}
+
+model historial_auditoria {
+  log_id                 String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tipo_accion            tipo_accion_auditoria_enum
+  entidad_afectada       String                     @db.VarChar(100)
+  entidad_id             String                     @db.Uuid
+  realizado_por_admin_id String?                    @db.Uuid
+  realizado_por_actor_id String?                    @db.Uuid
+  observacion_accion     String?
+  creado_en              DateTime                   @default(now()) @db.Timestamp(6)
+
+  admin administradores? @relation(fields: [realizado_por_admin_id], references: [admin_id])
+  actor actores?         @relation(fields: [realizado_por_actor_id], references: [actor_id])
+  detalle Json? @db.JsonB
+}
+
+model tokens_recuperacion {
+  token_id   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  admin_id   String    @db.Uuid
+  token_hash String    @unique @db.VarChar(64)
+  expira_en  DateTime  @db.Timestamp(6)
+  usado_en   DateTime? @db.Timestamp(6)
+  creado_en  DateTime  @default(now()) @db.Timestamp(6)
+
+  admin administradores @relation(fields: [admin_id], references: [admin_id], onDelete: Cascade)
+}
+
+model perfiles_versiones {
+  version_id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actor_id              String              @db.Uuid
+  numero_version        Int
+  datos                 Json                @db.JsonB
+  estado                estado_version_enum @default(PENDIENTE)
+  motivo_rechazo        String?
+  creado_en             DateTime            @default(now()) @db.Timestamp(6)
+  revisado_en           DateTime?           @db.Timestamp(6)
+  revisado_por_admin_id String?             @db.Uuid
+
+  actor   actores          @relation(fields: [actor_id], references: [actor_id], onDelete: Cascade)
+  revisor administradores? @relation(fields: [revisado_por_admin_id], references: [admin_id])
+
+  @@unique([actor_id, numero_version])
+}
+
+model convocatorias_habilidades {
+  convocatoria_id String  @db.Uuid
+  habilidad_id    String  @db.Uuid
+  obligatoria     Boolean @default(true)
+
+  convocatoria convocatorias @relation(fields: [convocatoria_id], references: [convocatoria_id], onDelete: Cascade)
+  habilidad    habilidades   @relation(fields: [habilidad_id], references: [habilidad_id])
+
+  @@id([convocatoria_id, habilidad_id])
+}
+
+model actividades_curso {
+  actividad_id   String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  curso_id       String              @db.Uuid
+  tipo           tipo_actividad_enum @default(SESION)
+  titulo         String              @db.VarChar(200)
+  descripcion    String?
+  fecha_inicio   DateTime?           @db.Timestamp(6)
+  fecha_fin      DateTime?           @db.Timestamp(6)
+  lugar_o_enlace String?             @db.VarChar(300)
+  orden          Int                 @default(0)
+  creado_en      DateTime            @default(now()) @db.Timestamp(6)
+
+  curso cursos_y_talleres @relation(fields: [curso_id], references: [curso_id], onDelete: Cascade)
+}
+
+model inscripciones_curso {
+  inscripcion_id        String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  curso_id              String                  @db.Uuid
+  actor_id              String                  @db.Uuid
+  estado                estado_inscripcion_enum
+  inscrito_en           DateTime                @default(now()) @db.Timestamp(6)
+  actualizado_en        DateTime                @default(now()) @db.Timestamp(6)
+  revisado_por_admin_id String?                 @db.Uuid
+  notas_admin           String?
+
+  curso   cursos_y_talleres @relation(fields: [curso_id], references: [curso_id], onDelete: Cascade)
+  actor   actores           @relation(fields: [actor_id], references: [actor_id], onDelete: Cascade)
+  revisor administradores?  @relation(fields: [revisado_por_admin_id], references: [admin_id])
+
+  @@unique([curso_id, actor_id])
+}
+
+model certificados {
+  certificado_id        String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  codigo                String                @unique @db.VarChar(20)
+  tipo                  tipo_certificado_enum
+  actor_id              String                @db.Uuid
+  curso_id              String?               @db.Uuid
+  emitido_en            DateTime              @default(now()) @db.Timestamp(6)
+  vence_en              DateTime?             @db.Timestamp(6)
+  revocado_en           DateTime?             @db.Timestamp(6)
+  motivo_revocacion     String?
+  revocado_por_admin_id String?               @db.Uuid
+  datos                 Json                  @db.JsonB
+  firma                 String                @db.VarChar(100)
+  sha256                String                @db.VarChar(64)
+  clave_pdf             String
+
+  actor   actores            @relation(fields: [actor_id], references: [actor_id], onDelete: Cascade)
+  curso   cursos_y_talleres? @relation(fields: [curso_id], references: [curso_id])
+  revisor administradores?   @relation(fields: [revocado_por_admin_id], references: [admin_id])
+}
